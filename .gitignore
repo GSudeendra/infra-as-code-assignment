@@ -84,3 +84,8 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+
+# Testing guides
+QUICK_START.md
+TESTING_SUMMARY.md
+USER_TESTING_GUIDE.md

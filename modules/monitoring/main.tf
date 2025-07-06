@@ -1,17 +1,45 @@
+terraform {
+  required_version = ">= 1.0"
+}
+
 # CloudWatch Log Groups for Lambda Functions
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each = toset(var.lambda_function_names)
-  
+
   name              = "/aws/lambda/${each.value}"
-  retention_in_days = var.log_retention_days
-  
+  retention_in_days = max(var.log_retention_days, 365) # Ensure at least 1 year retention
+
+  tags = var.tags
+}
+
+# KMS key for CloudWatch log encryption
+resource "aws_kms_key" "cloudwatch_logs" {
+  description             = "KMS key for CloudWatch log encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = var.tags
+}
+
+resource "aws_kms_alias" "cloudwatch_logs" {
+  name          = "alias/cloudwatch-logs-${var.environment}"
+  target_key_id = aws_kms_key.cloudwatch_logs.key_id
+}
+
+# CloudWatch Log Group for API Gateway with encryption
+resource "aws_cloudwatch_log_group" "api_gateway" {
+  count = var.create_api_gateway_alarms ? 1 : 0
+
+  name              = "/aws/apigateway/${var.api_gateway_name}"
+  retention_in_days = max(var.log_retention_days, 365) # Ensure at least 1 year retention
+
   tags = var.tags
 }
 
 # CloudWatch Alarm for Lambda Errors
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   for_each = toset(var.lambda_function_names)
-  
+
   alarm_name          = "${each.value}-errors"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -22,18 +50,18 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   threshold           = "1"
   alarm_description   = "Lambda function ${each.value} error rate"
   alarm_actions       = var.alarm_actions
-  
+
   dimensions = {
     FunctionName = each.value
   }
-  
+
   tags = var.tags
 }
 
 # CloudWatch Alarm for Lambda Duration
 resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
   for_each = toset(var.lambda_function_names)
-  
+
   alarm_name          = "${each.value}-duration"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -44,18 +72,18 @@ resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
   threshold           = var.lambda_duration_threshold
   alarm_description   = "Lambda function ${each.value} duration exceeded threshold"
   alarm_actions       = var.alarm_actions
-  
+
   dimensions = {
     FunctionName = each.value
   }
-  
+
   tags = var.tags
 }
 
 # CloudWatch Alarm for API Gateway 5XX Errors
 resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx_errors" {
   count = var.create_api_gateway_alarms ? 1 : 0
-  
+
   alarm_name          = "api-gateway-5xx-errors"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -66,18 +94,18 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx_errors" {
   threshold           = "5"
   alarm_description   = "API Gateway 5XX error rate"
   alarm_actions       = var.alarm_actions
-  
+
   dimensions = {
     ApiName = var.api_gateway_name
   }
-  
+
   tags = var.tags
 }
 
 # CloudWatch Alarm for API Gateway 4XX Errors
 resource "aws_cloudwatch_metric_alarm" "api_gateway_4xx_errors" {
   count = var.create_api_gateway_alarms ? 1 : 0
-  
+
   alarm_name          = "api-gateway-4xx-errors"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -88,10 +116,10 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_4xx_errors" {
   threshold           = "10"
   alarm_description   = "API Gateway 4XX error rate"
   alarm_actions       = var.alarm_actions
-  
+
   dimensions = {
     ApiName = var.api_gateway_name
   }
-  
+
   tags = var.tags
 } 

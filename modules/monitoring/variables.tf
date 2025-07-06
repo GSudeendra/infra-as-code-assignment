@@ -4,6 +4,12 @@ variable "lambda_function_names" {
   default     = []
 }
 
+variable "environment" {
+  description = "Environment name for resource naming"
+  type        = string
+  default     = "dev"
+}
+
 variable "log_retention_days" {
   description = "Number of days to retain CloudWatch logs"
   type        = number

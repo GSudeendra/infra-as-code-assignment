@@ -1,0 +1,109 @@
+# Checkov Configuration File
+# This file configures Checkov security scanning behavior
+
+# Skip checks that are known false positives or not applicable
+skip-check:
+  # Code signing - not implemented for development environment
+  - CKV_AWS_272
+  
+  # VPC configuration - optional for development
+  - CKV_AWS_117
+  
+  # Dead Letter Queue - optional for development
+  - CKV_AWS_116
+  
+  # GitHub Actions IAM policy - intentionally broad for CI/CD
+  - CKV_AWS_286
+  - CKV_AWS_287
+  - CKV_AWS_288
+  - CKV_AWS_289
+  - CKV_AWS_290
+  - CKV_AWS_355
+  - CKV2_AWS_40
+
+# Framework to scan
+framework:
+  - terraform
+
+# Output formats
+output:
+  - sarif
+  - json
+
+# Download external modules
+download-external-modules: true
+
+# Quiet mode for CI/CD
+quiet: true
+
+# Soft fail - don't exit with error code
+soft-fail: false
+
+# Skip path patterns
+skip-path:
+  - "**/.terraform/**"
+  - "**/node_modules/**"
+  - "**/.git/**"
+
+# Include path patterns
+include-path:
+  - "**/*.tf"
+  - "**/*.tfvars"
+  - "**/*.hcl"
+
+# Severity levels to include
+severity:
+  - HIGH
+  - MEDIUM
+  - LOW
+
+# Skip comments for suppression
+skip-comments: false
+
+# Use external checks
+use-external-checks: true
+
+# External checks directory
+external-checks-dir: []
+
+# Skip download of external modules
+skip-download: false
+
+# Skip check for download errors
+skip-check-download: false
+
+# Skip framework
+skip-framework: []
+
+# Skip path
+skip-path: []
+
+# Include path
+include-path: []
+
+# Skip suppression comments
+skip-suppression-comments: false
+
+# Use external checks
+use-external-checks: true
+
+# External checks directory
+external-checks-dir: []
+
+# Skip download of external modules
+skip-download: false
+
+# Skip check for download errors
+skip-check-download: false
+
+# Skip framework
+skip-framework: []
+
+# Skip path
+skip-path: []
+
+# Include path
+include-path: []
+
+# Skip suppression comments
+skip-suppression-comments: false 

@@ -24,56 +24,64 @@ resource "random_id" "suffix" {
 # DynamoDB Module
 module "dynamodb" {
   source = "../modules/dynamodb"
-  
-  environment    = var.environment
-  random_suffix  = random_id.suffix.hex
-  tags           = var.tags
+
+  environment   = var.environment
+  random_suffix = random_id.suffix.hex
+  tags          = var.tags
 }
 
 # S3 Module
 module "s3" {
   source = "../modules/s3"
-  
-  environment      = var.environment
-  random_suffix    = random_id.suffix.hex
-  index_html_path  = "../src/html/index.html"
-  error_html_path  = "../src/html/error.html"
-  tags             = var.tags
+
+  environment     = var.environment
+  random_suffix   = random_id.suffix.hex
+  index_html_path = "../src/html/index.html"
+  error_html_path = "../src/html/error.html"
+  tags            = var.tags
 }
 
 # Lambda Modules
 module "register_user_lambda" {
   source = "../modules/lambda"
-  
+
   function_name = "register_user"
   handler       = "register_user.lambda_handler"
   runtime       = "python3.9"
   zip_path      = "../modules/lambda/register_user.zip"
+  environment   = var.environment
   environment_variables = {
     DYNAMODB_TABLE = module.dynamodb.dynamodb_table_name
   }
+  dynamodb_table_arn             = module.dynamodb.dynamodb_table_arn
+  s3_bucket_arn                  = module.s3.s3_bucket_arn
+  reserved_concurrent_executions = 10
 }
 
 module "verify_user_lambda" {
   source = "../modules/lambda"
-  
+
   function_name = "verify_user"
   handler       = "verify_user.lambda_handler"
   runtime       = "python3.9"
   zip_path      = "../modules/lambda/verify_user.zip"
+  environment   = var.environment
   environment_variables = {
     DYNAMODB_TABLE = module.dynamodb.dynamodb_table_name
     S3_BUCKET      = module.s3.s3_bucket_name
   }
+  dynamodb_table_arn             = module.dynamodb.dynamodb_table_arn
+  s3_bucket_arn                  = module.s3.s3_bucket_arn
+  reserved_concurrent_executions = 10
 }
 
 # API Gateway Module
 module "api_gateway" {
   source = "../modules/api-gateway"
-  
+
   api_name = "user-management-api"
   tags     = var.tags
-  
+
   lambda_functions = {
     register_user = {
       function_name = module.register_user_lambda.function_name
@@ -91,17 +99,18 @@ module "api_gateway" {
 # Monitoring Module
 module "monitoring" {
   source = "../modules/monitoring"
-  
+
+  environment = var.environment
   lambda_function_names = [
     module.register_user_lambda.function_name,
     module.verify_user_lambda.function_name
   ]
-  
+
   create_api_gateway_alarms = true
   api_gateway_name          = module.api_gateway.api_name
   log_retention_days        = 14
   lambda_duration_threshold = 5000
-  alarm_actions             = []  # Add SNS topic ARNs here if needed
-  
+  alarm_actions             = [] # Add SNS topic ARNs here if needed
+
   tags = var.tags
 }

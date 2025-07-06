@@ -19,194 +19,284 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: 1.5.0
+  TF_VERSION: ~1.5
 
 permissions:
   id-token: write
   contents: read
+  security-events: write
 
 jobs:
-  terraform-check:
-    name: Terraform Check
+  validate:
+    name: Validate & Security
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
+      - name: Run TFLint
+        run: |
+          tflint --init
+          tflint --recursive
+        
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+        
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Terraform Format Check
-      run: terraform fmt -check -recursive
+      - name: Install security tools
+        run: |
+          pip install checkov bandit jq
 
-    - name: Setup TFLint
-      uses: terraform-linters/setup-tflint@v4
-      with:
-        tflint_version: latest
+      - name: Run Comprehensive Security Scan
+        run: |
+          chmod +x scripts/security/security-scan.sh
+          ./scripts/security/security-scan.sh
 
-    - name: Run TFLint
-      run: |
-        tflint --init
-        tflint --recursive
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: reports/checkov-results.sarif
 
-  security-check:
-    name: Security Check
+      - name: Upload Security Summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: security-reports/
+          retention-days: 30
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan -no-color
+        env:
+          TF_VAR_environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+  deploy:
+    name: Deploy Infrastructure
+    needs: validate
     runs-on: ubuntu-latest
-    
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+        
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve
+        
+      - name: Get Terraform Outputs
+        id: terraform-outputs
+        working-directory: ./terraform
+        run: |
+          echo "api_gateway_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
+          echo "s3_bucket_name=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
+        
+      - name: Test Infrastructure
+        run: |
+          echo "Running infrastructure tests..."
+          # Setup Python for testing
+          python -m pip install --upgrade pip
+          pip install boto3 requests pytest
+          
+          # Run infrastructure tests
+          python -m pytest tests/ -v
+          
+      - name: Manual API Testing
+        run: |
+          echo "Running manual API tests..."
+          API_URL="${{ steps.terraform-outputs.outputs.api_gateway_url }}"
+          
+          # Test user registration
+          echo "Testing user registration..."
+          curl -X POST "$API_URL/register" \
+            -H "Content-Type: application/json" \
+            -d '{"userId": "test-user-$(date +%s)", "email": "test@example.com"}' \
+            -w "\nHTTP Status: %{http_code}\n"
+          
+          # Test user verification
+          echo "Testing user verification..."
+          curl -X GET "$API_URL/" \
+            -w "\nHTTP Status: %{http_code}\n"
 
-    - name: Run Checkov
-      id: checkov
-      uses: bridgecrewio/checkov-action@master
-      with:
-        directory: .
-        framework: terraform
-        output_format: sarif
-        output_file_path: reports/results.sarif
-        download_external_modules: true
-        quiet: true
-
-    - name: Upload Checkov results
-      uses: github/codeql-action/upload-sarif@v2
-      if: always()
-      with:
-        sarif_file: reports/results.sarif
-
-  terraform-plan:
-    name: Terraform Plan
-    runs-on: ubuntu-latest
-    needs: [terraform-check, security-check]
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
-
-    - name: Terraform Init
-      working-directory: ./terraform
-      run: terraform init
-
-    - name: Terraform Plan
-      working-directory: ./terraform
-      run: terraform plan -no-color
-      continue-on-error: false
-
-  terraform-apply:
-    name: Terraform Apply
-    runs-on: ubuntu-latest
-    needs: [terraform-check, security-check]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
-
-    - name: Terraform Init
-      working-directory: ./terraform
-      run: terraform init
-
-    - name: Terraform Apply
-      working-directory: ./terraform
-      run: terraform apply -auto-approve
-
-    - name: Get Terraform Outputs
-      id: terraform-outputs
-      working-directory: ./terraform
-      run: |
-        echo "api_gateway_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
-        echo "s3_bucket_name=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
-
-  test-infrastructure:
+  test:
     name: Test Infrastructure
+    needs: deploy
     runs-on: ubuntu-latest
-    needs: terraform-apply
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-    
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Install dependencies
-      run: |
-        pip install boto3 requests pytest
+      - name: Install dependencies
+        run: |
+          pip install boto3 requests pytest
 
-    - name: Run Infrastructure Tests
-      run: |
-        python -m pytest tests/ -v
+      - name: Run Infrastructure Tests
+        run: |
+          python -m pytest tests/ -v
 
-  terraform-destroy:
-    name: Terraform Destroy
+      - name: Security Post-Deployment Check
+        run: |
+          echo "Running post-deployment security checks..."
+          # Verify encryption settings
+          echo "Checking DynamoDB encryption..."
+          aws dynamodb describe-table --table-name $(aws dynamodb list-tables --query 'TableNames[?contains(@, `users-`)][0]' --output text) --query 'Table.SSEDescription'
+          
+          echo "Checking S3 encryption..."
+          aws s3api get-bucket-encryption --bucket $(aws s3 ls | grep static-content | awk '{print $3}')
+          
+          echo "Checking Lambda X-Ray tracing..."
+          aws lambda list-functions --query 'Functions[?contains(FunctionName, `register_user`) || contains(FunctionName, `verify_user`)].{FunctionName:FunctionName,TracingConfig:TracingConfig}'
+
+  cleanup:
+    name: Cleanup (Manual)
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
-    
+    environment: production
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
-
-    - name: Terraform Init
-      working-directory: ./terraform
-      run: terraform init
-
-    - name: Empty S3 Buckets
-      working-directory: ./terraform
-      run: |
-        # Get bucket names from Terraform state
-        BUCKET_NAMES=$(terraform show -json | jq -r '.values.root_module.resources[] | select(.type == "aws_s3_bucket") | .values.bucket')
+      - name: Checkout
+        uses: actions/checkout@v4
         
-        for bucket in $BUCKET_NAMES; do
-          echo "Emptying bucket: $bucket"
-          aws s3 rm s3://$bucket --recursive || true
-        done
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+        
+      - name: Empty S3 Buckets
+        working-directory: ./terraform
+        run: |
+          # Get bucket names from Terraform state
+          BUCKET_NAMES=$(terraform show -json | jq -r '.values.root_module.resources[] | select(.type == "aws_s3_bucket") | .values.bucket')
+          
+          for bucket in $BUCKET_NAMES; do
+            echo "Emptying bucket: $bucket"
+            aws s3 rm s3://$bucket --recursive || true
+          done
+        
+      - name: Terraform Destroy
+        working-directory: ./terraform
+        run: terraform destroy -auto-approve
 
-    - name: Terraform Destroy
-      working-directory: ./terraform
-      run: terraform destroy -auto-approve 
+  plan:
+    name: Terraform Plan (Manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+        
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan -no-color
+        env:
+          TF_VAR_environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+  apply:
+    name: Terraform Apply (Manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+        
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve
+        
+      - name: Get Terraform Outputs
+        id: terraform-outputs
+        working-directory: ./terraform
+        run: |
+          echo "api_gateway_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
+          echo "s3_bucket_name=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT 

@@ -6,21 +6,23 @@ import pytest
 import time
 from botocore.exceptions import ClientError
 
+AWS_REGION = 'us-east-1'
+
 class TestInfrastructure:
     """Test suite for infrastructure validation"""
     
     @classmethod
     def setup_class(cls):
         """Set up test fixtures before running tests."""
-        cls.s3_client = boto3.client('s3')
-        cls.dynamodb_client = boto3.client('dynamodb')
-        cls.lambda_client = boto3.client('lambda')
-        cls.apigateway_client = boto3.client('apigateway')
+        cls.s3_client = boto3.client('s3', region_name=AWS_REGION)
+        cls.dynamodb_client = boto3.client('dynamodb', region_name=AWS_REGION)
+        cls.lambda_client = boto3.client('lambda', region_name=AWS_REGION)
+        cls.apigateway_client = boto3.client('apigateway', region_name=AWS_REGION)
         
         # Get Terraform outputs
         try:
             result = subprocess.run(['terraform', 'output', '-json'], 
-                                  capture_output=True, text=True, cwd='./terraform')
+                                  capture_output=True, text=True, cwd='../terraform')
             if result.returncode == 0:
                 cls.tf_outputs = json.loads(result.stdout)
             else:
@@ -178,45 +180,92 @@ class TestInfrastructure:
     def test_lambda_function_permissions(self):
         """Test that Lambda functions have necessary permissions."""
         lambda_functions = ['register_user', 'verify_user']
-        
+        iam_client = boto3.client('iam', region_name=AWS_REGION)
         for function_name in lambda_functions:
             try:
-                response = self.lambda_client.get_policy(FunctionName=function_name)
-                assert 'Policy' in response
-                
-                # Parse policy and check for necessary permissions
-                policy = json.loads(response['Policy'])
-                assert 'Statement' in policy
-                
-                # Check for DynamoDB permissions
+                # Get the Lambda function configuration to find the execution role
+                response = self.lambda_client.get_function(FunctionName=function_name)
+                role_arn = response['Configuration']['Role']
+                role_name = role_arn.split('/')[-1]
+                # Get the inline policies
+                inline_policies = iam_client.list_role_policies(RoleName=role_name)['PolicyNames']
                 dynamodb_permissions = False
-                for statement in policy['Statement']:
-                    if ('dynamodb:' in str(statement.get('Action', [])) or 
-                        'dynamodb:' in str(statement.get('Action', ''))):
-                        dynamodb_permissions = True
-                        break
-                
+                # Check inline policies
+                for policy_name in inline_policies:
+                    policy = iam_client.get_role_policy(RoleName=role_name, PolicyName=policy_name)
+                    statements = policy['PolicyDocument'].get('Statement', [])
+                    if not isinstance(statements, list):
+                        statements = [statements]
+                    for statement in statements:
+                        actions = statement.get('Action', [])
+                        if isinstance(actions, str):
+                            actions = [actions]
+                        if any('dynamodb:' in action for action in actions):
+                            dynamodb_permissions = True
+                            break
+                # Check attached managed policies
+                attached_policies = iam_client.list_attached_role_policies(RoleName=role_name)['AttachedPolicies']
+                for attached in attached_policies:
+                    policy_arn = attached['PolicyArn']
+                    policy_version = iam_client.get_policy(PolicyArn=policy_arn)['Policy']['DefaultVersionId']
+                    policy_doc = iam_client.get_policy_version(PolicyArn=policy_arn, VersionId=policy_version)['PolicyVersion']['Document']
+                    statements = policy_doc.get('Statement', [])
+                    if not isinstance(statements, list):
+                        statements = [statements]
+                    for statement in statements:
+                        actions = statement.get('Action', [])
+                        if isinstance(actions, str):
+                            actions = [actions]
+                        if any('dynamodb:' in action for action in actions):
+                            dynamodb_permissions = True
+                            break
                 assert dynamodb_permissions, f"Lambda function {function_name} missing DynamoDB permissions"
-                
             except ClientError as e:
-                if 'ResourceNotFoundException' in str(e):
-                    pytest.fail(f"Lambda function {function_name} policy not found")
-                else:
-                    pytest.fail(f"Failed to get Lambda function {function_name} policy: {e}")
+                pytest.fail(f"Failed to check permissions for Lambda function {function_name}: {e}")
     
     def test_cloudwatch_log_groups_exist(self):
         """Test that CloudWatch log groups exist for Lambda functions."""
-        log_client = boto3.client('logs')
+        log_client = boto3.client('logs', region_name=AWS_REGION)
         lambda_functions = ['register_user', 'verify_user']
         
         for function_name in lambda_functions:
             log_group_name = f"/aws/lambda/{function_name}"
-            try:
-                response = log_client.describe_log_groups(logGroupNamePrefix=log_group_name)
-                assert len(response['logGroups']) > 0
-                assert response['logGroups'][0]['logGroupName'] == log_group_name
-            except ClientError as e:
-                pytest.fail(f"CloudWatch log group {log_group_name} not found: {e}")
+            # Try to find the log group with retries
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = log_client.describe_log_groups(logGroupNamePrefix=log_group_name)
+                    if len(response['logGroups']) > 0:
+                        # Found the log group
+                        assert response['logGroups'][0]['logGroupName'] == log_group_name
+                        break
+                    else:
+                        # Log group not found, try to invoke Lambda to trigger creation
+                        if attempt == 0:  # Only invoke on first attempt
+                            try:
+                                self.lambda_client.invoke(
+                                    FunctionName=function_name,
+                                    Payload=b'{}',
+                                    InvocationType='RequestResponse'
+                                )
+                                print(f"Invoked {function_name} to trigger log group creation")
+                            except Exception as e:
+                                print(f"Failed to invoke {function_name}: {e}")
+                        
+                        if attempt < max_retries - 1:
+                            print(f"Log group {log_group_name} not found, retrying in 5 seconds... (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(5)
+                        else:
+                            # Last attempt failed, print available log groups for debugging
+                            all_log_groups = log_client.describe_log_groups()
+                            print(f"Available log groups: {[lg['logGroupName'] for lg in all_log_groups.get('logGroups', [])]}")
+                            pytest.fail(f"CloudWatch log group {log_group_name} not found after {max_retries} attempts")
+                except ClientError as e:
+                    if attempt < max_retries - 1:
+                        print(f"Error checking log group {log_group_name}, retrying in 5 seconds... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(5)
+                    else:
+                        pytest.fail(f"CloudWatch log group {log_group_name} not found: {e}")
     
     def test_infrastructure_cost_optimization(self):
         """Test that infrastructure follows cost optimization practices."""

@@ -5,7 +5,7 @@ plugin "aws" {
 }
 
 config {
-  module = true
+  call_module_type = "local"
 }
 
 rule "terraform_deprecated_interpolation" {
@@ -43,4 +43,4 @@ rule "terraform_naming_convention" {
 
 rule "terraform_standard_module_structure" {
   enabled = true
-} 
+}

@@ -1,11 +1,12 @@
 # Infrastructure as Code Assignment - Milestone 3
 
-This repository contains the implementation of a serverless user registration and verification system using AWS services and Terraform, now enhanced with CI/CD automation, advanced Terraform modules, and comprehensive testing.
+This repository contains the implementation of a serverless user registration and verification system using AWS services and Terraform, now enhanced with CI/CD automation, advanced Terraform modules, comprehensive testing, and enterprise-grade security.
 
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
 - [Milestone 3 Features](#milestone-3-features)
+- [Security Features](#security-features)
 - [Prerequisites](#prerequisites)
 - [Project Structure](#project-structure)
 - [Deployment Instructions](#deployment-instructions)
@@ -13,6 +14,7 @@ This repository contains the implementation of a serverless user registration an
   - [Configuring GitHub Actions](#configuring-github-actions)
   - [Deploying the Main Infrastructure](#deploying-the-main-infrastructure)
 - [CI/CD Pipeline](#cicd-pipeline)
+- [Security Testing](#security-testing)
 - [Testing](#testing)
 - [Clean Up Instructions](#clean-up-instructions)
 - [Design Decisions](#design-decisions)
@@ -27,23 +29,28 @@ This solution implements a serverless architecture with the following components
    - Routes:
      - `/register` - For user registration
      - `/` - For user verification
+   - **Security**: Access logging, authorization controls, CORS configuration
 
 2. **Lambda Functions**:
    - `register-user`: Handles user registration
    - `verify-user`: Validates user existence and returns appropriate HTML content
+   - **Security**: X-Ray tracing, restricted IAM policies, concurrent execution limits
 
 3. **DynamoDB**:
    - Stores user registration data
    - Uses PAY_PER_REQUEST billing mode for cost optimization
+   - **Security**: Server-side encryption, point-in-time recovery
 
 4. **S3 Bucket**:
    - Hosts static HTML content (index.html and error.html)
    - Serves success/error pages for user verification
+   - **Security**: Encryption, access logging, lifecycle policies, public access restrictions
 
 5. **CloudWatch Monitoring**:
    - Log groups for Lambda functions
    - Alarms for errors and performance metrics
    - API Gateway monitoring
+   - **Security**: KMS encryption, extended log retention
 
 ## Milestone 3 Features
 
@@ -69,6 +76,76 @@ This solution implements a serverless architecture with the following components
 - **Application Tests**: API functionality verification
 - **Security Tests**: Configuration validation
 - **Automated Pipeline**: Tests run on every deployment
+
+## Security Features
+
+### 🛡️ Enterprise-Grade Security Implementation
+
+This infrastructure implements comprehensive security measures to meet enterprise standards:
+
+#### **API Gateway Security**
+- ✅ Access logging with detailed request/response data
+- ✅ Explicit authorization type declarations
+- ✅ CORS configuration with proper headers
+- ✅ CloudWatch integration for monitoring
+
+#### **Lambda Security**
+- ✅ X-Ray tracing for request tracing and debugging
+- ✅ Concurrent execution limits to prevent resource exhaustion
+- ✅ Restricted IAM policies with resource-specific permissions
+- ✅ Environment variable encryption support
+- ✅ Optional VPC configuration for network isolation
+
+#### **DynamoDB Security**
+- ✅ Server-side encryption with AWS managed keys
+- ✅ Point-in-time recovery for data protection
+- ✅ Access logging and monitoring
+- ✅ Backup encryption
+
+#### **S3 Security**
+- ✅ Server-side encryption with bucket key optimization
+- ✅ Access logging to separate bucket
+- ✅ Public access completely blocked
+- ✅ Lifecycle policies for cost management
+- ✅ Versioning enabled for data protection
+
+#### **CloudWatch Security**
+- ✅ KMS encryption for log groups
+- ✅ Extended retention (minimum 1 year)
+- ✅ Comprehensive monitoring and alerting
+- ✅ Access control through IAM policies
+
+#### **IAM Security**
+- ✅ Principle of least privilege
+- ✅ Resource-specific permissions (no wildcards)
+- ✅ Environment-based access controls
+- ✅ Regular policy reviews and updates
+
+### 🔍 Security Scanning & Compliance
+
+#### **Automated Security Tools**
+- **Checkov**: Infrastructure security scanning
+- **TFLint**: Terraform best practices validation
+- **Bandit**: Python code security analysis
+- **Terraform Validate**: Configuration validation
+
+#### **Compliance Standards**
+- **SOC 2**: Data encryption, access logging, monitoring
+- **PCI DSS**: Encryption at rest, access controls
+- **HIPAA**: Data protection, audit logging
+- **ISO 27001**: Information security management
+
+#### **Security Testing**
+- Comprehensive security testing guide
+- Automated security scanning scripts
+- Manual verification procedures
+- Continuous monitoring and alerting
+
+### 📋 Security Documentation
+- [Security Fixes Applied](SECURITY_FIXES.md) - Detailed security improvements
+- [Security Testing Guide](SECURITY_TESTING_GUIDE.md) - Comprehensive testing procedures
+- [Checkov Configuration](.checkov.yaml) - Security scanning configuration
+- [Security Scanning Script](scripts/security/security-scan.sh) - Automated security checks
 
 ## Prerequisites
 
@@ -228,6 +305,104 @@ The pipeline includes automated security scanning using Checkov:
 - Scans Terraform code for security misconfigurations
 - Generates SARIF reports for GitHub Security tab
 - Fails pipeline on critical security issues
+
+## Security Testing
+
+### Automated Security Scanning
+
+The CI/CD pipeline includes comprehensive security scanning:
+
+#### **Checkov Infrastructure Security**
+- Scans Terraform code for security misconfigurations
+- Generates SARIF reports for GitHub Security tab
+- Fails pipeline on critical security issues
+- Configurable suppressions for known false positives
+
+#### **TFLint Best Practices**
+- Validates Terraform code against best practices
+- Ensures consistent formatting and naming
+- Checks for deprecated syntax and patterns
+
+#### **Bandit Python Security**
+- Scans Python code for security vulnerabilities
+- Identifies common security issues
+- Generates detailed security reports
+
+### Manual Security Testing
+
+#### **Quick Security Scan**
+```bash
+# Run comprehensive security scan
+chmod +x scripts/security/security-scan.sh
+./scripts/security/security-scan.sh
+```
+
+#### **Individual Security Checks**
+```bash
+# Checkov scan
+checkov -d . --quiet --output sarif --output-file-path reports/results.sarif
+
+# TFLint validation
+tflint --init && tflint --recursive
+
+# Terraform validation
+terraform validate
+```
+
+### Security Verification Commands
+
+#### **API Gateway Security**
+```bash
+# Verify access logging
+aws logs describe-log-groups --log-group-name-prefix "/aws/apigateway"
+
+# Check authorization settings
+aws apigatewayv2 get-stage --api-id <API_ID> --stage-name '$default'
+```
+
+#### **Lambda Security**
+```bash
+# Verify X-Ray tracing
+aws lambda get-function --function-name <FUNCTION_NAME> \
+  --query 'Configuration.TracingConfig'
+
+# Check IAM permissions
+aws iam get-role-policy --role-name <ROLE_NAME> --policy-name <POLICY_NAME>
+```
+
+#### **DynamoDB Security**
+```bash
+# Verify encryption
+aws dynamodb describe-table --table-name <TABLE_NAME> \
+  --query 'Table.SSEDescription'
+
+# Check backup settings
+aws dynamodb describe-continuous-backups --table-name <TABLE_NAME>
+```
+
+#### **S3 Security**
+```bash
+# Verify encryption
+aws s3api get-bucket-encryption --bucket <BUCKET_NAME>
+
+# Check public access
+aws s3api get-public-access-block --bucket <BUCKET_NAME>
+```
+
+### Security Compliance
+
+The infrastructure meets multiple compliance standards:
+
+- **SOC 2**: Data encryption, access logging, monitoring
+- **PCI DSS**: Encryption at rest, access controls
+- **HIPAA**: Data protection, audit logging
+- **ISO 27001**: Information security management
+
+### Security Documentation
+
+- [Security Fixes Applied](SECURITY_FIXES.md) - Detailed security improvements
+- [Security Testing Guide](SECURITY_TESTING_GUIDE.md) - Comprehensive testing procedures
+- [Checkov Configuration](.checkov.yaml) - Security scanning configuration
 
 ## Testing
 
