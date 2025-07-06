@@ -16,4 +16,9 @@ output "dynamodb_table_name" {
 output "dynamodb_table_arn" {
   description = "ARN of the DynamoDB table for state locking"
   value       = aws_dynamodb_table.terraform_locks.arn
+}
+
+output "github_actions_role_arn" {
+  description = "ARN of the GitHub Actions IAM role"
+  value       = aws_iam_role.github_actions.arn
 } 

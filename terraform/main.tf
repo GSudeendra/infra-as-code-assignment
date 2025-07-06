@@ -87,3 +87,21 @@ module "api_gateway" {
     }
   }
 }
+
+# Monitoring Module
+module "monitoring" {
+  source = "../modules/monitoring"
+  
+  lambda_function_names = [
+    module.register_user_lambda.function_name,
+    module.verify_user_lambda.function_name
+  ]
+  
+  create_api_gateway_alarms = true
+  api_gateway_name          = module.api_gateway.api_name
+  log_retention_days        = 14
+  lambda_duration_threshold = 5000
+  alarm_actions             = []  # Add SNS topic ARNs here if needed
+  
+  tags = var.tags
+}
