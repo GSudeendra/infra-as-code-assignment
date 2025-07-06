@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Deploy wrapper script
+# Runs the deployment script from the organized scripts directory
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOY_SCRIPT="$SCRIPT_DIR/scripts/deployment/deploy.sh"
+
+if [ ! -f "$DEPLOY_SCRIPT" ]; then
+    echo "❌ Deployment script not found: $DEPLOY_SCRIPT"
+    exit 1
+fi
+
+echo "🚀 Running deployment script..."
+exec "$DEPLOY_SCRIPT" "$@" 

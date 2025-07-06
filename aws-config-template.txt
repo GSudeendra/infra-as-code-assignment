@@ -1,0 +1,27 @@
+# AWS Configuration Template
+# Copy this to ~/.aws/config and replace placeholders with actual values
+# DO NOT commit this file with real values to version control
+
+[profile twbeach]
+# Replace with your actual SSO portal URL
+sso_start_url = <your-sso-portal-url>
+
+# Replace with your SSO region
+sso_region = <sso-region>
+
+# AWS Beach account ID (this is public information)
+sso_account_id = 160071257600
+
+# Replace with your actual role name
+sso_role_name = <your-role-name>
+
+# Replace with your preferred AWS region
+region = <aws-region>
+
+output = json
+
+# Security Notes:
+# - Never commit real SSO URLs to version control
+# - Use environment-specific configuration
+# - Regularly rotate SSO sessions
+# - Monitor access logs for suspicious activity 

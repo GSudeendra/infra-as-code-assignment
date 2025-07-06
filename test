@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Test wrapper script
+# Runs the test script from the organized scripts directory
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_SCRIPT="$SCRIPT_DIR/scripts/testing/test.sh"
+
+if [ ! -f "$TEST_SCRIPT" ]; then
+    echo "❌ Test script not found: $TEST_SCRIPT"
+    exit 1
+fi
+
+echo "🧪 Running test script..."
+exec "$TEST_SCRIPT" "$@" 

@@ -13,7 +13,13 @@ variable "runtime" {
   type        = string
 }
 
-variable "source_file" {
-  description = "Path to the Lambda source file."
+variable "zip_path" {
+  description = "Path to the Lambda ZIP file."
   type        = string
+}
+
+variable "environment_variables" {
+  description = "Environment variables for the Lambda function"
+  type        = map(string)
+  default     = {}
 } 
