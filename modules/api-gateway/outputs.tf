@@ -11,4 +11,9 @@ output "api_gateway_id" {
 output "api_gateway_execution_arn" {
   description = "Execution ARN of the API Gateway"
   value       = aws_apigatewayv2_api.main.execution_arn
+}
+
+output "api_name" {
+  description = "Name of the API Gateway"
+  value       = aws_apigatewayv2_api.main.name
 } 
