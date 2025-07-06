@@ -9,7 +9,7 @@ variable "tags" {
   type        = map(string)
   default = {
     Project = "iac-assignment"
-    Owner   = "student"
+    Owner   = "sudeendra"
   }
 }
 
@@ -17,4 +17,4 @@ variable "environment" {
   description = "Deployment environment (e.g., dev, prod)."
   type        = string
   default     = "dev"
-} 
+}
