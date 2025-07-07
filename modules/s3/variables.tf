@@ -16,10 +16,4 @@ variable "index_html_path" {
 variable "error_html_path" {
   description = "Path to the error.html file"
   type        = string
-}
-
-variable "tags" {
-  description = "Tags to apply to resources"
-  type        = map(string)
-  default     = {}
 } 
