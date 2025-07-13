@@ -53,7 +53,7 @@ if command_exists checkov; then
         --quiet \
         --output sarif \
         --output-file-path "$REPORTS_DIR/checkov-results.sarif" \
-        --download-external-modules true \
+        --download-external-modules \
         --framework terraform \
         --soft-fail || true
     
@@ -70,7 +70,7 @@ else
         --quiet \
         --output sarif \
         --output-file-path "$REPORTS_DIR/checkov-results.sarif" \
-        --download-external-modules true \
+        --download-external-modules \
         --framework terraform \
         --soft-fail || true
 fi
@@ -79,7 +79,7 @@ fi
 print_section "Running TFLint Security Scan"
 if command_exists tflint; then
     echo "Running TFLint..."
-    tflint --init
+    tflint --init || true
     tflint --format json > "$REPORTS_DIR/tflint-results.json" 2>/dev/null || true
     
     # Check for issues

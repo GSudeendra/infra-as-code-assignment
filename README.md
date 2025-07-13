@@ -186,7 +186,38 @@ This infrastructure implements comprehensive security measures to meet enterpris
 
 ## Deployment Instructions
 
-### Setting up Remote State
+### 🚀 Quick Setup for Instructors
+
+**For instructors who want to quickly set up and test the repository:**
+
+1. **Run the automated setup script**:
+   ```bash
+   ./scripts/setup-instructor.sh
+   ```
+   
+   This script will:
+   - Check all prerequisites (AWS CLI, Terraform, Python)
+   - Configure GitHub OIDC for your repository
+   - Deploy remote state infrastructure (S3 + DynamoDB)
+   - Update backend configuration automatically
+   - Test the setup and provide next steps
+
+2. **Add GitHub Repository Secret**:
+   - Go to your GitHub repository → Settings → Secrets and Variables → Actions
+   - Add secret: `AWS_ROLE_ARN` with the value from the setup script output
+
+3. **Push to trigger CI/CD**:
+   ```bash
+   git add .
+   git commit -m "Setup Milestone 3 infrastructure"
+   git push origin main
+   ```
+
+### Manual Setup (Alternative)
+
+If you prefer manual setup or need to customize the configuration:
+
+#### Setting up Remote State
 
 1. Navigate to the remote state directory:
    ```bash
@@ -211,7 +242,7 @@ This infrastructure implements comprehensive security measures to meet enterpris
    - `dynamodb_table_name`: DynamoDB table for state locking
    - `github_actions_role_arn`: GitHub Actions IAM role ARN
 
-### Configuring GitHub Actions
+#### Configuring GitHub Actions
 
 1. **Add Repository Secret**:
    - Go to your GitHub repository → Settings → Secrets and Variables → Actions
@@ -528,13 +559,134 @@ aws s3 rm s3://your-state-bucket-name --recursive
 
 ## Instructor Guide
 
-For instructors evaluating this assignment, please refer to the comprehensive [INSTRUCTOR_GUIDE.md](INSTRUCTOR_GUIDE.md) which includes:
+This section provides detailed instructions for instructors to evaluate the project.
 
-- Step-by-step setup instructions
-- Evaluation checklist
-- Testing procedures
-- Troubleshooting guide
-- Advanced assessment criteria
+### 🎯 Evaluation Checklist
+
+#### **Prerequisites for Instructors**
+- [ ] AWS CLI configured with appropriate credentials
+- [ ] Terraform >= 1.5.0 installed
+- [ ] Python 3.9+ installed
+- [ ] GitHub account with repository access
+
+#### **Setup Steps for Instructors**
+
+1. **Fork the Repository**:
+   - Fork the repository to your GitHub account
+   - Clone the forked repository locally
+
+2. **Run Automated Setup**:
+   ```bash
+   ./scripts/setup-instructor.sh
+   ```
+   - This will configure everything automatically
+   - Follow the prompts and save the output values
+
+3. **Configure GitHub Secrets**:
+   - Go to your forked repository → Settings → Secrets and Variables → Actions
+   - Add secret: `AWS_ROLE_ARN` with the value from the setup script
+
+4. **Test the CI/CD Pipeline**:
+   ```bash
+   git add .
+   git commit -m "Test Milestone 3 setup"
+   git push origin main
+   ```
+   - Monitor the GitHub Actions workflow
+   - Verify successful deployment
+
+#### **What to Look For**
+
+##### **✅ CI/CD Pipeline Features**
+- [ ] GitHub Actions workflow runs successfully
+- [ ] OIDC authentication works (no stored AWS credentials)
+- [ ] Security scanning (Checkov) runs and reports issues
+- [ ] Code quality checks (TFLint, formatting) pass
+- [ ] Automated testing runs after deployment
+- [ ] Manual workflow dispatch works (plan/apply/destroy)
+
+##### **✅ Infrastructure Features**
+- [ ] All AWS resources deploy successfully
+- [ ] API Gateway serves the application
+- [ ] Lambda functions work correctly
+- [ ] DynamoDB stores and retrieves data
+- [ ] S3 hosts static content
+- [ ] CloudWatch monitoring is configured
+
+##### **✅ Security Features**
+- [ ] Least privilege IAM policies
+- [ ] Encryption enabled on all resources
+- [ ] Security scanning passes
+- [ ] No hardcoded credentials
+- [ ] OIDC authentication configured
+
+##### **✅ Testing Features**
+- [ ] Infrastructure tests pass
+- [ ] Application tests pass
+- [ ] Security tests run
+- [ ] Tests are automated in CI/CD
+
+#### **Common Issues and Solutions**
+
+**Issue**: `terraform init` fails with credential errors
+- **Solution**: Ensure AWS credentials are configured and the IAM role has proper permissions
+
+**Issue**: GitHub Actions workflow fails on credential step
+- **Solution**: Verify the `AWS_ROLE_ARN` secret is set correctly in repository settings
+
+**Issue**: Security scanning fails
+- **Solution**: Check that all security tools are installed and the reports directory exists
+
+**Issue**: Tests fail after deployment
+- **Solution**: Ensure the infrastructure is fully deployed before running tests
+
+#### **Manual Testing Commands**
+
+```bash
+# Test API Gateway
+curl -X POST "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/register" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "test-user", "email": "test@example.com"}'
+
+# Test Lambda functions directly
+aws lambda invoke --function-name register-user-lambda \
+  --payload '{"userId": "test", "email": "test@example.com"}' response.json
+
+# Check DynamoDB
+aws dynamodb scan --table-name users-table
+
+# Verify S3 content
+aws s3 ls s3://YOUR_BUCKET_NAME/
+```
+
+#### **Cleanup Instructions**
+
+1. **Destroy Infrastructure**:
+   - Go to GitHub Actions → Deploy Infrastructure → Run workflow
+   - Choose action: `destroy`
+   - This will empty S3 buckets and destroy all resources
+
+2. **Manual Cleanup** (if needed):
+   ```bash
+   cd terraform
+   terraform destroy -auto-approve
+   cd ../remote-state
+   terraform destroy -auto-approve
+   ```
+
+#### **Grading Criteria**
+
+| Criteria | Points | Description |
+|----------|--------|-------------|
+| CI/CD Pipeline | 25 | GitHub Actions workflow, OIDC, security scanning |
+| Infrastructure | 25 | All AWS resources deploy and work correctly |
+| Security | 20 | Encryption, IAM policies, security scanning |
+| Testing | 15 | Automated tests, infrastructure validation |
+| Documentation | 15 | Clear instructions, troubleshooting guide |
+
+**Total: 100 points**
+
+For additional details, refer to the comprehensive [INSTRUCTOR_GUIDE.md](INSTRUCTOR_GUIDE.md).
 
 ## Advanced Features
 

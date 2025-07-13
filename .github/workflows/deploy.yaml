@@ -52,14 +52,6 @@ jobs:
           tflint --init
           tflint --recursive || true
         
-      - name: Terraform Init
-        working-directory: ./terraform
-        run: terraform init
-        
-      - name: Terraform Validate
-        working-directory: ./terraform
-        run: terraform validate
-        
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -68,6 +60,9 @@ jobs:
       - name: Install security tools
         run: |
           pip install checkov bandit jq
+
+      - name: Create reports directory
+        run: mkdir -p reports security-reports
 
       - name: Run Comprehensive Security Scan
         run: |
@@ -88,6 +83,20 @@ jobs:
           path: security-reports/
           retention-days: 30
 
+      - name: Configure AWS credentials for Terraform
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+        
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+        
       - name: Terraform Plan
         working-directory: ./terraform
         run: terraform plan -no-color
