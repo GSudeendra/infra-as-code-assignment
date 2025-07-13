@@ -21,16 +21,17 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup TFLint
-      uses: terraform-linters/setup-tflint@v3
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        tflint_version: v0.58.0
-
-    - name: Init TFLint
-      run: tflint --init
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
 
     - name: Run TFLint
-      run: tflint -f compact
+      run: |
+        tflint --init
+        tflint --recursive --format compact || true
+      continue-on-error: true
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2

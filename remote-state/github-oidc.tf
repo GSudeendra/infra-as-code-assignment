@@ -18,7 +18,7 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 
 # IAM role for GitHub Actions
 resource "aws_iam_role" "github_actions" {
-  name = "github-actions-role-${var.environment}-${random_id.suffix.hex}"
+  name = "${var.project_prefix}-github-actions-role-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -46,7 +46,7 @@ resource "aws_iam_role" "github_actions" {
 
 # IAM policy for GitHub Actions
 resource "aws_iam_role_policy" "github_actions" {
-  name = "github-actions-policy-${var.environment}-${random_id.suffix.hex}"
+  name = "${var.project_prefix}-github-actions-policy-${var.environment}"
   role = aws_iam_role.github_actions.id
 
   policy = jsonencode({

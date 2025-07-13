@@ -1,3 +1,44 @@
+# Getting Started: Essential AWS Setup
+
+Before using this project, you must set up AWS resources for secure GitHub Actions authentication and Terraform remote state. **These steps are required for all new environments!**
+
+## 1. Deploy Remote State and OIDC Role
+
+From your project root, run:
+
+```sh
+cd remote-state
+terraform init
+terraform apply
+```
+- This will create:
+  - S3 bucket for Terraform state
+  - DynamoDB table for state locking
+  - OIDC provider for GitHub Actions
+  - IAM role for GitHub Actions OIDC authentication
+
+## 2. Find the IAM Role ARN
+- Go to AWS Console → IAM → Roles
+- Search for your role (e.g., `iacdemo-github-actions-role-dev`)
+- Click the role and copy the **Role ARN** (e.g., `arn:aws:iam::160071257600:role/iacdemo-github-actions-role-dev`)
+
+## 3. Configure GitHub Secrets
+- Go to your GitHub repo → Settings → Secrets and variables → Actions
+- Add the following secrets:
+
+| Secret Name      | Value (example)                                                        |
+|------------------|------------------------------------------------------------------------|
+| AWS_ROLE_ARN     | arn:aws:iam::160071257600:role/iacdemo-github-actions-role-dev         |
+| S3_BUCKET_NAME   | iacdemo-terraform-state-dev                                            |
+| DYNAMODB_TABLE   | iacdemo-terraform-locks-dev                                            |
+
+- Use the actual values output by Terraform, not the placeholders above.
+
+## 4. Re-run Your GitHub Actions Pipeline
+- Your pipeline will now be able to authenticate to AWS and manage infrastructure securely.
+
+---
+
 # Infrastructure as Code Assignment - Milestone 3
 
 This repository contains the implementation of a serverless user registration and verification system using AWS services and Terraform, now enhanced with CI/CD automation, advanced Terraform modules, comprehensive testing, and enterprise-grade security.

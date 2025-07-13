@@ -27,12 +27,12 @@ resource "random_id" "suffix" {
 
 # S3 bucket for Terraform state
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "terraform-state-${var.environment}-${random_id.suffix.hex}"
+  bucket = "${var.project_prefix}-remote-state-${var.environment}"
 }
 
 # S3 bucket for access logs
 resource "aws_s3_bucket" "terraform_state_logs" {
-  bucket = "terraform-state-logs-${var.environment}-${random_id.suffix.hex}"
+  bucket = "${var.project_prefix}-remote-state-logs-${var.environment}"
 }
 
 # Configure access logging for the state bucket
@@ -145,7 +145,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state_logs" {
 
 # DynamoDB table for state locking
 resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "terraform-locks-${var.environment}-${random_id.suffix.hex}"
+  name         = "${var.project_prefix}-terraform-locks-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 

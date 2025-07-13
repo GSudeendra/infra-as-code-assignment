@@ -4,8 +4,14 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "project_prefix" {
+  description = "Prefix for all resource names"
+  type        = string
+  default     = "iac"
+}
+
 variable "environment" {
-  description = "Environment name for the resources (e.g., dev, prod)"
+  description = "Environment name (e.g., dev, prod)"
   type        = string
   default     = "dev"
 }

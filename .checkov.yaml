@@ -1,6 +1,9 @@
 # Checkov Configuration File
 # This file configures Checkov security scanning behavior
 
+# (Remove unsupported/deprecated options)
+# Only include supported configuration options here.
+
 # Skip checks that are known false positives or not applicable
 skip-check:
   # Code signing - not implemented for development environment
@@ -57,9 +60,6 @@ severity:
   - MEDIUM
   - LOW
 
-# Skip comments for suppression
-skip-comments: false
-
 # Use external checks
 use-external-checks: true
 
@@ -69,9 +69,6 @@ external-checks-dir: []
 # Skip download of external modules
 skip-download: false
 
-# Skip check for download errors
-skip-check-download: false
-
 # Skip framework
 skip-framework: []
 
@@ -79,31 +76,4 @@ skip-framework: []
 skip-path: []
 
 # Include path
-include-path: []
-
-# Skip suppression comments
-skip-suppression-comments: false
-
-# Use external checks
-use-external-checks: true
-
-# External checks directory
-external-checks-dir: []
-
-# Skip download of external modules
-skip-download: false
-
-# Skip check for download errors
-skip-check-download: false
-
-# Skip framework
-skip-framework: []
-
-# Skip path
-skip-path: []
-
-# Include path
-include-path: []
-
-# Skip suppression comments
-skip-suppression-comments: false 
+include-path: [] 
