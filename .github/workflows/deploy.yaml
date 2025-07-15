@@ -106,8 +106,9 @@ jobs:
       - name: Run TFLint
         run: |
           tflint --init
-          tflint --format compact ./terraform
-          tflint --format compact ./remote-state
+          # Using --chdir flag instead of directly specifying directory
+          tflint --format compact --chdir=terraform
+          tflint --format compact --chdir=remote-state
 
   security-scan:
     name: "Security Analysis"
