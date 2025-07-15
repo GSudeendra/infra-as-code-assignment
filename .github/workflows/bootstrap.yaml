@@ -1,0 +1,101 @@
+name: "Bootstrap Remote State"
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - destroy
+      confirm_action:
+        description: 'Type "CONFIRM" to proceed'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  # For bootstrap, we need a special bootstrap role that exists before our infrastructure
+  AWS_BOOTSTRAP_ROLE_ARN: ${{ vars.AWS_BOOTSTRAP_ROLE_ARN }}
+
+jobs:
+  validate-input:
+    name: "Validate Input"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_action }}" != "CONFIRM" ]; then
+            echo "❌ Action not confirmed. You must type 'CONFIRM' to proceed."
+            exit 1
+          fi
+          echo "✅ Action confirmed: ${{ github.event.inputs.action }}"
+
+  bootstrap-remote-state:
+    name: "Bootstrap Remote State Infrastructure"
+    runs-on: ubuntu-latest
+    needs: [validate-input]
+    environment: bootstrap
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_BOOTSTRAP_ROLE_ARN }}
+          role-session-name: BootstrapSession
+          role-duration-seconds: 1800
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5.0"
+
+      - name: Terraform Init
+        run: |
+          cd remote-state
+          terraform init
+
+      - name: Terraform Plan
+        if: github.event.inputs.action == 'deploy'
+        run: |
+          cd remote-state
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'deploy'
+        run: |
+          cd remote-state
+          terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: |
+          cd remote-state
+          terraform destroy -auto-approve
+
+      - name: Output Bootstrap Results
+        if: github.event.inputs.action == 'deploy'
+        run: |
+          cd remote-state
+          echo "### Bootstrap Results" >> $GITHUB_STEP_SUMMARY
+          echo "- S3 Bucket: $(terraform output -raw s3_bucket_name)" >> $GITHUB_STEP_SUMMARY
+          echo "- DynamoDB Table: $(terraform output -raw dynamodb_table_name)" >> $GITHUB_STEP_SUMMARY
+          echo "- IAM Role ARN: $(terraform output -raw github_actions_role_arn)" >> $GITHUB_STEP_SUMMARY
+          echo "- AWS Account ID: $(terraform output -raw aws_account_id)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Add these **repository variables** (NOT secrets) to your GitHub repository:" >> $GITHUB_STEP_SUMMARY
+          echo "   - AWS_ACCOUNT_ID: $(terraform output -raw aws_account_id)" >> $GITHUB_STEP_SUMMARY
+          echo "   - AWS_REGION: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "   - S3_BUCKET_PREFIX: $(terraform output -raw s3_bucket_prefix)" >> $GITHUB_STEP_SUMMARY
+          echo "   - DYNAMODB_TABLE_PREFIX: $(terraform output -raw dynamodb_table_prefix)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Use the main deployment workflow" >> $GITHUB_STEP_SUMMARY

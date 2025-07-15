@@ -1,0 +1,146 @@
+name: "Infrastructure Destruction Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  # Compute role ARN from repository info and AWS account
+  AWS_ROLE_ARN: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-oidc-${{ github.repository_owner }}-${{ github.event.repository.name }}
+  # Compute backend resources from repository info
+  S3_BUCKET_NAME: ${{ vars.S3_BUCKET_PREFIX }}-${{ github.repository_owner }}-${{ github.event.repository.name }}-terraform-state
+  DYNAMODB_TABLE: ${{ vars.DYNAMODB_TABLE_PREFIX }}-${{ github.repository_owner }}-${{ github.event.repository.name }}-terraform-locks
+
+jobs:
+  confirm-destroy:
+    name: "Confirm Destruction"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "❌ Destruction not confirmed. You must type 'DESTROY' to proceed."
+            exit 1
+          fi
+          echo "✅ Destruction confirmed"
+
+  empty-s3-buckets:
+    name: "Empty S3 Buckets"
+    runs-on: ubuntu-latest
+    needs: [confirm-destroy]
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: S3EmptySession
+          role-duration-seconds: 1800
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5.0"
+
+      - name: Initialize Terraform
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=${{ env.S3_BUCKET_NAME }}" \
+            -backend-config="dynamodb_table=${{ env.DYNAMODB_TABLE }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="key=terraform-${{ github.event.inputs.environment }}.tfstate"
+
+      - name: Get S3 Bucket Names
+        id: get_buckets
+        run: |
+          cd terraform
+          BUCKETS=$(terraform output -json | jq -r '.[] | select(.type == "string" and (.value | contains("bucket"))) | .value')
+          echo "buckets<<EOF" >> $GITHUB_OUTPUT
+          echo "$BUCKETS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Empty S3 Buckets
+        run: |
+          echo "Emptying S3 buckets before destruction..."
+          for bucket in ${{ steps.get_buckets.outputs.buckets }}; do
+            echo "Emptying bucket: $bucket"
+            aws s3 rm s3://$bucket --recursive || echo "Bucket $bucket might not exist or is already empty"
+          done
+
+  terraform-destroy:
+    name: "Terraform Destroy"
+    runs-on: ubuntu-latest
+    needs: [empty-s3-buckets]
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: TerraformDestroySession
+          role-duration-seconds: 1800
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5.0"
+
+      - name: Create terraform provider cache
+        run: |
+          echo 'plugin_cache_dir="$HOME/.terraform.d/plugin-cache"' >~/.terraformrc
+          mkdir --parents ~/.terraform.d/plugin-cache
+
+      - name: Cache Terraform provider plugins
+        uses: actions/cache@v3
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Initialize Terraform
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=${{ env.S3_BUCKET_NAME }}" \
+            -backend-config="dynamodb_table=${{ env.DYNAMODB_TABLE }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="key=terraform-${{ github.event.inputs.environment }}.tfstate"
+
+      - name: Terraform Destroy
+        run: |
+          cd terraform
+          terraform destroy -auto-approve \
+            -var="environment=${{ github.event.inputs.environment }}"
+
+      - name: Destruction Summary
+        run: |
+          echo "### Infrastructure Destruction Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ✅ Successfully destroyed" >> $GITHUB_STEP_SUMMARY

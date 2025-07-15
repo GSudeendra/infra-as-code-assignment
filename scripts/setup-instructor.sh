@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Milestone 3 Setup Script for Instructors
 # This script helps instructors configure the repository for CI/CD and remote state
 
 set -e
