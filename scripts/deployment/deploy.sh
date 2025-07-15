@@ -49,7 +49,7 @@ print_status "Planning remote state infrastructure..."
 terraform plan -out=tfplan
 
 print_status "Applying remote state infrastructure..."
-terraform apply tfplan
+terraform apply -auto-approve tfplan
 
 # Get outputs
 S3_BUCKET=$(terraform output -raw s3_bucket_name)
@@ -114,7 +114,7 @@ print_status "Planning main infrastructure..."
 terraform plan -out=tfplan
 
 print_status "Applying main infrastructure..."
-terraform apply tfplan
+terraform apply -auto-approve tfplan
 
 # Get API Gateway URL
 API_URL=$(terraform output -raw api_gateway_url)

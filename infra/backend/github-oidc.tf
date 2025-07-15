@@ -1,15 +1,5 @@
 data "aws_caller_identity" "current" {}
 
-# OIDC provider for GitHub Actions (create if not exists)
-resource "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
-  client_id_list = ["sts.amazonaws.com"]
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1c58a3a8518e8759bf075b76b750d4f2df264fcd"
-  ]
-}
-
 # Dedicated IAM Role for GitHub Actions OIDC (CI/CD only)
 resource "aws_iam_role" "github_oidc" {
   name = "github-actions-oidc-role"
@@ -20,7 +10,7 @@ resource "aws_iam_role" "github_oidc" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = aws_iam_openid_connect_provider.github.arn
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
@@ -47,7 +37,7 @@ resource "aws_iam_role" "github_actions" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Effect = "Allow"
         Principal = {
-          Federated = aws_iam_openid_connect_provider.github.arn
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
         }
         Condition = {
           StringEquals = {
@@ -145,10 +135,39 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
           "logs:*",
           "lambda:*",
           "apigateway:*",
-          "iam:PassRole"
+          "iam:PassRole",
+          "iam:GetOpenIDConnectProvider"
         ]
-        Resource = "*"
+        Resource = [
+          "*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+        ]
       }
     ]
   })
+}
+
+# Policy to allow creation of the GitHub Actions OIDC role
+resource "aws_iam_policy" "allow_create_github_oidc_role" {
+  name        = "allow-create-github-oidc-role"
+  description = "Allow creation of the GitHub Actions OIDC role"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-oidc-role"
+      }
+    ]
+  })
+}
+
+# Attach the allow_create_github_oidc_role policy to the Terraform execution role
+resource "aws_iam_role_policy_attachment" "attach_create_github_oidc_role" {
+  role       = var.terraform_execution_role_name # Set this variable to your Terraform execution role name
+  policy_arn = aws_iam_policy.allow_create_github_oidc_role.arn
 } 

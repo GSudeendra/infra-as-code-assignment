@@ -30,4 +30,9 @@ variable "aws_profile" {
   description = "AWS CLI profile to use (leave empty for CI/CD)"
   type        = string
   default     = ""
+}
+
+variable "terraform_execution_role_name" {
+  description = "The name of the IAM role used to execute Terraform (for policy attachment)."
+  type        = string
 } 
