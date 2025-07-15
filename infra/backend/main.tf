@@ -13,8 +13,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
-  profile = (contains(keys(env), "CI") && env.CI == "true") ? null : (env.AWS_PROFILE != null ? env.AWS_PROFILE : "twbeach")
+  region  = var.aws_region
+  profile = var.aws_profile != "" ? var.aws_profile : null
   default_tags {
     tags = var.tags
   }

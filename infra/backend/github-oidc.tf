@@ -1,19 +1,44 @@
 data "aws_caller_identity" "current" {}
 
-# OIDC provider for GitHub Actions
-resource "aws_iam_openid_connect_provider" "github_actions" {
+# OIDC provider for GitHub Actions (create if not exists)
+resource "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
-
-  client_id_list = [
-    "sts.amazonaws.com",
-  ]
-
+  client_id_list = ["sts.amazonaws.com"]
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1",
     "1c58a3a8518e8759bf075b76b750d4f2df264fcd"
   ]
+}
 
-  tags = var.tags
+# Dedicated IAM Role for GitHub Actions OIDC (CI/CD only)
+resource "aws_iam_role" "github_oidc" {
+  name = "github-actions-oidc-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:GSudeendra/infra-as-code-assignment:*"
+          }
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Data source for existing OIDC provider (for backward compatibility)
+data "aws_iam_openid_connect_provider" "github_oidc" {
+  url = "https://token.actions.githubusercontent.com"
 }
 
 # IAM role for GitHub Actions
@@ -27,7 +52,7 @@ resource "aws_iam_role" "github_actions" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Effect = "Allow"
         Principal = {
-          Federated = aws_iam_openid_connect_provider.github_actions.arn
+          Federated = data.aws_iam_openid_connect_provider.github_oidc.arn
         }
         Condition = {
           StringEquals = {
@@ -83,7 +108,8 @@ resource "aws_iam_role_policy" "github_actions" {
           "dynamodb:CreateTable",
           "dynamodb:DeleteTable",
           "dynamodb:DescribeTable",
-          "dynamodb:ListTables"
+          "dynamodb:ListTables",
+          "dynamodb:TagResource"
         ]
         Resource = [
           "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/*"
@@ -101,6 +127,30 @@ resource "aws_iam_role_policy" "github_actions" {
           "lambda:*",
           "apigateway:*",
           "execute-api:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "github_oidc_policy" {
+  name = "github-actions-oidc-policy"
+  role = aws_iam_role.github_oidc.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:*",
+          "dynamodb:*",
+          "cloudwatch:*",
+          "logs:*",
+          "lambda:*",
+          "apigateway:*",
+          "iam:PassRole"
         ]
         Resource = "*"
       }

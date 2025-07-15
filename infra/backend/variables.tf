@@ -24,4 +24,10 @@ variable "tags" {
     Environment = "dev"
     Terraform   = "true"
   }
+}
+
+variable "aws_profile" {
+  description = "AWS CLI profile to use (leave empty for CI/CD)"
+  type        = string
+  default     = ""
 } 
