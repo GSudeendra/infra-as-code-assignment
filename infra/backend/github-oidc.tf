@@ -36,11 +36,6 @@ resource "aws_iam_role" "github_oidc" {
   })
 }
 
-# Data source for existing OIDC provider (for backward compatibility)
-data "aws_iam_openid_connect_provider" "github_oidc" {
-  url = "https://token.actions.githubusercontent.com"
-}
-
 # IAM role for GitHub Actions
 resource "aws_iam_role" "github_actions" {
   name = "${var.project_prefix}-github-actions-role-${var.environment}"
@@ -52,7 +47,7 @@ resource "aws_iam_role" "github_actions" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Effect = "Allow"
         Principal = {
-          Federated = data.aws_iam_openid_connect_provider.github_oidc.arn
+          Federated = aws_iam_openid_connect_provider.github.arn
         }
         Condition = {
           StringEquals = {
