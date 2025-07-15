@@ -31,12 +31,12 @@ print_warning() {
 
 # Get API Gateway URL
 print_status "Getting API Gateway URL..."
-if [ -d "terraform" ]; then
-    cd terraform
+if [ -d "infra" ]; then
+    cd infra
     API_URL=$(terraform output -raw api_gateway_url 2>/dev/null || echo "")
     cd ..
 else
-    print_error "terraform directory not found. Please run this script from the project root."
+    print_error "infra directory not found. Please run this script from the project root."
     exit 1
 fi
 

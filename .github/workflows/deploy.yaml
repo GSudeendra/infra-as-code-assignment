@@ -1,25 +1,9 @@
-name: "Infrastructure Deployment Pipeline"
+name: deploy-infrastructure-pipeline
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - test
-          - prod
   push:
-    branches:
-      - main
-    paths:
-      - 'terraform/**'
-      - 'modules/**'
-      - 'src/**'
-      - '.github/workflows/**'
+    branches: [main]
 
 permissions:
   id-token: write
@@ -28,415 +12,177 @@ permissions:
   actions: read
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  # Compute role ARN from repository info and AWS account
+  AWS_REGION: ${{ vars.AWS_REGION }}
   AWS_ROLE_ARN: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-oidc-${{ github.repository_owner }}-${{ github.event.repository.name }}
-  # Compute backend resources from repository info
-  S3_BUCKET_NAME: ${{ vars.S3_BUCKET_PREFIX }}-${{ github.repository_owner }}-${{ github.event.repository.name }}-terraform-state
-  DYNAMODB_TABLE: ${{ vars.DYNAMODB_TABLE_PREFIX }}-${{ github.repository_owner }}-${{ github.event.repository.name }}-terraform-locks
 
 jobs:
-  terraform-validate:
-    name: "Validate Terraform Code"
+  deploy-remote-state:
+    name: deploy-remote-state
     runs-on: ubuntu-latest
-    concurrency:
-      group: terraform-validate
-      cancel-in-progress: false
-    outputs:
-      tf_version: ${{ steps.tf_version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Get Terraform version from versions.tf
-        id: tf_version
-        run: |
-          TF_VERSION=$(grep -o 'required_version\s*=\s*".*"' terraform/backend.tf | sed 's/required_version\s*=\s*"\(.*\)"/\1/')
-          if [ -z "$TF_VERSION" ]; then
-            TF_VERSION="~1.5.0"
-          fi
-          echo "version=$TF_VERSION" >> $GITHUB_OUTPUT
-
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: RemoteStateSession
+          role-duration-seconds: 1800
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ${{ steps.tf_version.outputs.version }}
-
-      - name: Create terraform provider cache
+          terraform_version: "~1.5.0"
+      - name: Terraform Init (remote-state)
         run: |
-          echo 'plugin_cache_dir="$HOME/.terraform.d/plugin-cache"' >~/.terraformrc
-          mkdir --parents ~/.terraform.d/plugin-cache
-
-      - name: Cache Terraform provider plugins
-        uses: actions/cache@v3
+          cd infra/backend
+          terraform init
+      - name: Terraform Validate (remote-state)
+        run: |
+          cd infra/backend
+          terraform validate
+      - name: Terraform Apply (remote-state)
+        run: |
+          cd infra/backend
+          terraform apply -auto-approve
+      - name: Save remote state outputs
+        run: |
+          cd infra/backend
+          terraform output -raw s3_bucket_name > s3_bucket_name.txt
+          terraform output -raw dynamodb_table_name > dynamodb_table_name.txt
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v3
         with:
-          path: ~/.terraform.d/plugin-cache
-          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terraform-
+          name: remote-state-outputs
+          path: |
+            infra/backend/s3_bucket_name.txt
+            infra/backend/dynamodb_table_name.txt
 
+  deploy-main-infra:
+    name: deploy-main-infra
+    runs-on: ubuntu-latest
+    needs: [deploy-remote-state]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download Remote State Outputs
+        uses: actions/download-artifact@v3
+        with:
+          name: remote-state-outputs
+          path: remote-state-outputs
+      - name: Read Output Files into ENV
+        run: |
+          echo "S3_BUCKET=$(cat remote-state-outputs/s3_bucket_name.txt)" >> $GITHUB_ENV
+          echo "DYNAMO_TABLE=$(cat remote-state-outputs/dynamodb_table_name.txt)" >> $GITHUB_ENV
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: MainInfraSession
+          role-duration-seconds: 1800
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.5.0"
+      - name: Terraform Init (main)
+        run: |
+          cd infra
+          region="${AWS_REGION:-us-east-1}"
+          terraform init \
+            -backend-config="bucket=${S3_BUCKET}" \
+            -backend-config="dynamodb_table=${DYNAMO_TABLE}" \
+            -backend-config="region=${region}"
+      - name: Terraform Validate (main)
+        run: |
+          cd infra
+          terraform validate
+      - name: Terraform Apply (main)
+        run: |
+          cd infra
+          terraform apply -auto-approve
+      - name: Get API Gateway URL
+        run: |
+          cd infra
+          terraform output -raw api_gateway_url > ../api_gateway_url.txt
       - name: Terraform Format Check
         run: |
-          echo "Checking Terraform formatting..."
-          cd terraform
+          cd infra
           terraform fmt -check -recursive
-          cd ../remote-state
-          terraform fmt -check -recursive
-
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v3
         with:
           tflint_version: v0.47.0
-
-      - name: Create TFLint config
-        run: |
-          cat > .tflint.hcl << 'EOF'
-          plugin "aws" {
-            enabled = true
-            version = "0.26.0"
-            source  = "github.com/terraform-linters/tflint-ruleset-aws"
-          }
-          plugin "terraform" {
-            enabled = true
-            version = "0.5.0"
-            source  = "github.com/terraform-linters/tflint-ruleset-terraform"
-          }
-          EOF
-
+      - name: Init TFLint Plugins
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: tflint --init
       - name: Run TFLint
         run: |
-          tflint --init
-          # Using --chdir flag instead of directly specifying directory
-          tflint --format compact --chdir=terraform
-          tflint --format compact --chdir=remote-state
-
-  security-scan:
-    name: "Security Analysis"
-    runs-on: ubuntu-latest
-    concurrency:
-      group: security-scan
-      cancel-in-progress: false
-    needs: [terraform-validate]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
+          tflint --format compact --chdir=infra
+      - name: Set up Python for Security Tools
         uses: actions/setup-python@v4
         with:
           python-version: "3.9"
-          cache: 'pip'
-
       - name: Install Security Scanning Tools
         run: |
           pip install checkov tfsec
           mkdir -p reports
-
       - name: Run Checkov
-        id: checkov
         run: |
           checkov -d . --framework terraform --output cli --output sarif --output-file-path reports/checkov-results.sarif --quiet
         continue-on-error: true
-
       - name: Run tfsec
-        id: tfsec
         run: |
           tfsec . --format sarif --out reports/tfsec-results.sarif
         continue-on-error: true
-
       - name: Upload Checkov SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: reports/checkov-results.sarif
           category: checkov
           wait-for-processing: true
-
       - name: Upload tfsec SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: reports/tfsec-results.sarif
           category: tfsec
           wait-for-processing: true
-
-      - name: Security Summary
-        run: |
-          echo "### Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Checkov Exit Code: ${{ steps.checkov.outcome == 'success' && '0 ✅' || steps.checkov.outputs.exit_code }}" >> $GITHUB_STEP_SUMMARY
-          echo "- tfsec Exit Code: ${{ steps.tfsec.outcome == 'success' && '0 ✅' || '1 ⚠️' }}" >> $GITHUB_STEP_SUMMARY
-
-  build-lambdas:
-    name: "Build Lambda Functions"
-    runs-on: ubuntu-latest
-    concurrency:
-      group: build-lambdas
-      cancel-in-progress: false
-    needs: [terraform-validate]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
+      - name: Set up Python for Tests
         uses: actions/setup-python@v4
         with:
           python-version: "3.9"
           cache: 'pip'
-
-      - name: Install Lambda Build Dependencies
-        run: |
-          if [ -f "src/lambda/requirements.txt" ]; then
-            pip install -r src/lambda/requirements.txt
-          fi
-
-      - name: Build Lambda Functions
-        run: |
-          chmod +x ./scripts/utilities/build-lambdas.sh
-          ./scripts/utilities/build-lambdas.sh
-
-      - name: Upload Lambda Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: lambda-packages
-          path: |
-            modules/lambda/*.zip
-
-  terraform-plan:
-    name: "Terraform Plan"
-    runs-on: ubuntu-latest
-    concurrency:
-      group: terraform-${{ github.event.inputs.environment || 'dev' }}-plan
-      cancel-in-progress: true
-    needs: [build-lambdas, security-scan]
-    environment: ${{ github.event.inputs.environment || 'dev' }}
-    outputs:
-      plan_exitcode: ${{ steps.plan.outputs.exitcode }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: TerraformPlanSession
-          role-duration-seconds: 1800
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ needs.terraform-validate.outputs.tf_version }}
-
-      - name: Create terraform provider cache
-        run: |
-          echo 'plugin_cache_dir="$HOME/.terraform.d/plugin-cache"' >~/.terraformrc
-          mkdir --parents ~/.terraform.d/plugin-cache
-
-      - name: Cache Terraform provider plugins
-        uses: actions/cache@v3
-        with:
-          path: ~/.terraform.d/plugin-cache
-          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terraform-
-
-      - name: Download Lambda Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: lambda-packages
-          path: modules/lambda
-
-      - name: Terraform Init
-        id: init
-        run: |
-          cd terraform
-          terraform init \
-            -backend-config="bucket=${{ env.S3_BUCKET_NAME }}" \
-            -backend-config="dynamodb_table=${{ env.DYNAMODB_TABLE }}" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="key=terraform-${{ github.event.inputs.environment || 'dev' }}.tfstate"
-
-      - name: Terraform Validate
-        run: |
-          cd terraform
-          terraform validate
-
-      - name: Terraform Plan
-        id: plan
-        run: |
-          cd terraform
-          terraform plan -detailed-exitcode \
-            -var="environment=${{ github.event.inputs.environment || 'dev' }}" \
-            -out=tfplan 2>&1 | tee plan_output.txt
-          echo "exitcode=$?" >> $GITHUB_OUTPUT
-        continue-on-error: true
-
-      - name: Upload Plan Output
-        uses: actions/upload-artifact@v3
-        with:
-          name: terraform-plan-${{ github.event.inputs.environment || 'dev' }}
-          path: |
-            terraform/tfplan
-            terraform/plan_output.txt
-
-      - name: Plan Summary
-        run: |
-          echo "### Terraform Plan Summary for ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Plan Exit Code: ${{ steps.plan.outputs.exitcode }}" >> $GITHUB_STEP_SUMMARY
-          echo "  - 0 = No changes" >> $GITHUB_STEP_SUMMARY
-          echo "  - 1 = Error" >> $GITHUB_STEP_SUMMARY
-          echo "  - 2 = Changes present" >> $GITHUB_STEP_SUMMARY
-
-      - name: Check Plan Status
-        if: steps.plan.outputs.exitcode == '1'
-        run: exit 1
-
-  terraform-apply:
-    name: "Terraform Apply"
-    runs-on: ubuntu-latest
-    concurrency:
-      group: terraform-${{ github.event.inputs.environment || 'dev' }}-apply
-      cancel-in-progress: false
-    needs: [terraform-plan]
-    if: needs.terraform-plan.outputs.plan_exitcode == '2' || github.event_name == 'workflow_dispatch'
-    environment: ${{ github.event.inputs.environment || 'dev' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: TerraformApplySession
-          role-duration-seconds: 1800
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ needs.terraform-validate.outputs.tf_version }}
-
-      - name: Create terraform provider cache
-        run: |
-          echo 'plugin_cache_dir="$HOME/.terraform.d/plugin-cache"' >~/.terraformrc
-          mkdir --parents ~/.terraform.d/plugin-cache
-
-      - name: Cache Terraform provider plugins
-        uses: actions/cache@v3
-        with:
-          path: ~/.terraform.d/plugin-cache
-          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terraform-
-
-      - name: Download Lambda Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: lambda-packages
-          path: modules/lambda
-
-      - name: Download Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: terraform-plan-${{ github.event.inputs.environment || 'dev' }}
-          path: terraform
-
-      - name: Terraform Init
-        run: |
-          cd terraform
-          terraform init \
-            -backend-config="bucket=${{ env.S3_BUCKET_NAME }}" \
-            -backend-config="dynamodb_table=${{ env.DYNAMODB_TABLE }}" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="key=terraform-${{ github.event.inputs.environment || 'dev' }}.tfstate"
-
-      - name: Terraform Apply
-        id: apply
-        run: |
-          cd terraform
-          terraform apply -auto-approve tfplan
-
-      - name: Extract Output Values
-        id: outputs
-        run: |
-          cd terraform
-          echo "API_GATEWAY_URL=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
-        continue-on-error: true
-
-      - name: Apply Summary
-        run: |
-          echo "### Terraform Apply Summary for ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Status: ✅ Successfully applied" >> $GITHUB_STEP_SUMMARY
-          echo "- API Gateway URL: ${{ steps.outputs.outputs.API_GATEWAY_URL }}" >> $GITHUB_STEP_SUMMARY
-
-  run-tests:
-    name: "Functional Testing"
-    runs-on: ubuntu-latest
-    needs: [terraform-apply]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-          cache: 'pip'
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: FunctionalTestingSession
-          role-duration-seconds: 1800
-
       - name: Install Test Dependencies
         run: |
           cd tests
           pip install -r requirements.txt
-
+      - name: Announce API Test
+        run: |
+          echo "Running automated tests against deployed API Gateway at $(cat ../api_gateway_url.txt)"
       - name: Run Functional Tests
-        id: functional_tests
         run: |
           cd tests
-          python -m pytest -v test_user_management_api.py test_infrastructure.py --junitxml=test-results.xml
+          export API_GATEWAY_URL=$(cat ../api_gateway_url.txt)
+          python -m pytest -v --junitxml=test-results.xml
         timeout-minutes: 5
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: test-results
           path: tests/test-results.xml
-
-      - name: Tests Summary
-        if: always()
-        run: |
-          echo "### Functional Test Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Status: ${{ steps.functional_tests.outcome == 'success' && '✅ All tests passed' || '❌ Tests failed' }}" >> $GITHUB_STEP_SUMMARY
-
-  generate-documentation:
-    name: "Generate Documentation"
-    runs-on: ubuntu-latest
-    needs: [terraform-apply]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Setup Terraform docs
         uses: terraform-docs/gh-actions@v1.0.0
         with:
           output-file: TERRAFORM_DOCS.md
           output-method: replace
           git-push: false
-          working-dir: terraform
-
+          working-dir: infra
       - name: Generate Module Documentation
         run: |
           echo "## Module Documentation" > MODULE_DOCS.md
-          for module in $(ls -d modules/*); do
+          for module in $(ls -d infra/modules/*); do
             if [ -d "$module" ]; then
               module_name=$(basename $module)
               echo "### Module: $module_name" >> MODULE_DOCS.md
@@ -446,75 +192,11 @@ jobs:
               echo "" >> MODULE_DOCS.md
             fi
           done
-
       - name: Combine Documentation
         run: |
           cat TERRAFORM_DOCS.md MODULE_DOCS.md > INFRASTRUCTURE_DOCS.md
           echo "## Infrastructure Diagram" >> INFRASTRUCTURE_DOCS.md
           echo "![Architecture Diagram](./docs/architecture-diagram.png)" >> INFRASTRUCTURE_DOCS.md
-          
-          # Add deployment instructions for secretless setup
-          cat << 'EOF' >> INFRASTRUCTURE_DOCS.md
-          
-          ## Secretless Deployment Instructions
-          
-          ### Prerequisites
-          - AWS Account
-          - GitHub Account
-          - Terraform installed locally (for initial setup only)
-          
-          ### Initial Setup
-          1. Clone this repository
-          2. Navigate to the `remote-state` directory
-          3. Update the OIDC provider configuration in `remote-state/main.tf`
-          4. Run `terraform init && terraform apply`
-          5. Note the outputs for AWS Account ID and computed resource names
-          
-          ### GitHub Repository Setup
-          Add the following **repository variables** (NOT secrets) to your GitHub repository:
-          - `AWS_ACCOUNT_ID`: Your AWS Account ID (e.g., 123456789012)
-          - `AWS_REGION`: AWS region to deploy to (e.g., us-east-1)
-          - `S3_BUCKET_PREFIX`: Prefix for S3 bucket name (e.g., my-company)
-          - `DYNAMODB_TABLE_PREFIX`: Prefix for DynamoDB table name (e.g., my-company)
-          
-          The workflow will automatically compute:
-          - Role ARN: `arn:aws:iam::ACCOUNT_ID:role/github-oidc-OWNER-REPO`
-          - S3 Bucket: `PREFIX-OWNER-REPO-terraform-state`
-          - DynamoDB Table: `PREFIX-OWNER-REPO-terraform-locks`
-          
-          ### Deployment
-          1. Trigger the workflow manually from the Actions tab or push to main branch
-          2. Select the environment (dev, test, prod)
-          3. Monitor the workflow execution
-          
-          ### Security Benefits
-          - ✅ No long-term AWS credentials stored in GitHub
-          - ✅ OIDC-based authentication with short-lived tokens
-          - ✅ Repository-specific IAM roles with least privilege
-          - ✅ All configuration visible in workflow files
-          - ✅ Instructor-friendly setup (only AWS Account ID needed)
-          
-          ### Testing
-          The workflow automatically runs functional tests after deployment.
-          You can also run tests manually:
-          ```bash
-          cd tests
-          pip install -r requirements.txt
-          python -m pytest -v
-          ```
-          
-          ### Destroying Infrastructure
-          To destroy the infrastructure:
-          1. Use the dedicated destroy workflow, or
-          2. Run locally with the same computed backend configuration
-          
-          ### Troubleshooting
-          - Ensure OIDC provider is properly configured in AWS
-          - Verify repository variables are set correctly
-          - Check IAM role trust policy includes your repository
-          - Confirm S3 bucket and DynamoDB table exist and are accessible
-          EOF
-
       - name: Upload Documentation
         uses: actions/upload-artifact@v3
         with:
@@ -523,20 +205,3 @@ jobs:
             TERRAFORM_DOCS.md
             MODULE_DOCS.md
             INFRASTRUCTURE_DOCS.md
-
-      # Optional: Create a PR to update documentation in the repository
-      - name: Create Pull Request with Documentation
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "docs: Update infrastructure documentation"
-          title: "Update Infrastructure Documentation"
-          body: |
-            This PR updates the infrastructure documentation based on the latest changes.
-            
-            Automatically generated by the CI/CD pipeline.
-          branch: update-infrastructure-docs
-          base: main
-          labels: documentation,automated-pr
-          draft: false

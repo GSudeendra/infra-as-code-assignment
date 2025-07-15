@@ -28,6 +28,10 @@ print_error() {
 echo "🚀 Starting Infrastructure Deployment"
 echo "====================================="
 
+# Resolve project root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Check AWS CLI configuration
 print_status "Checking AWS CLI configuration..."
 if aws sts get-caller-identity > /dev/null 2>&1; then
@@ -39,7 +43,7 @@ fi
 
 # Step 1: Deploy Remote State Infrastructure
 print_status "Step 1: Deploying Remote State Infrastructure..."
-cd remote-state
+cd "$PROJECT_ROOT/infra/backend"
 
 print_status "Planning remote state infrastructure..."
 terraform plan -out=tfplan
@@ -55,11 +59,11 @@ print_success "Remote state infrastructure deployed ✓"
 print_status "State bucket: $S3_BUCKET"
 print_status "Lock table: $DYNAMODB_TABLE"
 
-cd ..
+cd "$PROJECT_ROOT"
 
 # Step 2: Update Backend Configuration
 print_status "Step 2: Updating Backend Configuration..."
-cd terraform
+cd "$PROJECT_ROOT/infra"
 
 # Update backend configuration
 cat > backend.tf << EOF
@@ -78,18 +82,27 @@ print_success "Backend configuration updated ✓"
 
 # Step 3: Build Lambda ZIPs
 print_status "Step 3: Building Lambda ZIPs..."
-cd ../modules/lambda
+cd "$PROJECT_ROOT/infra/modules/lambda"
 
-# Create ZIP files for Lambda functions
-echo "Building register_user from ../src/lambda/register_user.py → register_user.zip"
-zip -j register_user.zip ../src/lambda/register_user.py
+# Check and build register_user
+if [ -f "$PROJECT_ROOT/src/lambda/register_user.py" ]; then
+  echo "Building register_user from $PROJECT_ROOT/src/lambda/register_user.py → register_user.zip"
+  zip -j register_user.zip "$PROJECT_ROOT/src/lambda/register_user.py"
+else
+  print_warning "register_user.py not found, skipping zip."
+fi
 
-echo "Building verify_user from ../src/lambda/verify_user.py → verify_user.zip"
-zip -j verify_user.zip ../src/lambda/verify_user.py
+# Check and build verify_user
+if [ -f "$PROJECT_ROOT/src/lambda/verify_user.py" ]; then
+  echo "Building verify_user from $PROJECT_ROOT/src/lambda/verify_user.py → verify_user.zip"
+  zip -j verify_user.zip "$PROJECT_ROOT/src/lambda/verify_user.py"
+else
+  print_warning "verify_user.py not found, skipping zip."
+fi
 
 print_success "Lambda ZIPs built ✓"
 
-cd ../../terraform
+cd "$PROJECT_ROOT/infra"
 
 # Step 4: Deploy Main Infrastructure
 print_status "Step 4: Deploying Main Infrastructure..."
@@ -108,13 +121,27 @@ API_URL=$(terraform output -raw api_gateway_url)
 
 print_success "Main infrastructure deployed ✓"
 
-cd ..
+# Step 5: Upload HTML files to S3
+print_status "Step 5: Uploading HTML files to S3..."
+if [ -f "$PROJECT_ROOT/html/index.html" ]; then
+  aws s3 cp "$PROJECT_ROOT/html/index.html" "s3://$S3_BUCKET/"
+else
+  print_warning "index.html not found, skipping upload."
+fi
+if [ -f "$PROJECT_ROOT/html/error.html" ]; then
+  aws s3 cp "$PROJECT_ROOT/html/error.html" "s3://$S3_BUCKET/"
+else
+  print_warning "error.html not found, skipping upload."
+fi
+print_success "HTML files uploaded to S3 (if present) ✓"
+
+cd "$PROJECT_ROOT"
 
 print_success "Deployment Complete! 🎉"
 echo ""
 print_status "📋 Infrastructure Summary:"
 print_status "  API Gateway URL: $API_URL"
-print_status "  S3 Bucket ARN: $(cd terraform && terraform output -raw s3_bucket_arn)"
+print_status "  S3 Bucket ARN: $(cd $PROJECT_ROOT/infra && terraform output -raw s3_bucket_arn)"
 echo ""
 print_status "🧪 To test the deployment, run: ./scripts/test.sh"
 print_status "🗑️  To destroy all resources, run: ./scripts/destroy.sh" 

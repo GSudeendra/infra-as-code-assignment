@@ -59,14 +59,14 @@ The workflow will automatically compute the full resource names using your GitHu
 
 1. **Deploy Remote State**
    ```bash
-   cd remote-state
+   cd infra/backend
    terraform init
    terraform apply
    ```
 
 2. **Deploy Main Infrastructure**
    ```bash
-   cd ../terraform
+   cd ../infra
    terraform init \
      -backend-config="bucket=YOUR_S3_BUCKET" \
      -backend-config="dynamodb_table=YOUR_DYNAMODB_TABLE"
@@ -153,11 +153,11 @@ Run the "destroy" workflow from the Actions tab
 ### Option C: Manual Cleanup
 ```bash
 # Clean up main infrastructure
-cd terraform
+cd infra
 terraform destroy
 
 # Clean up remote state infrastructure
-cd ../remote-state
+cd ../infra/backend
 terraform destroy
 ```
 

@@ -125,7 +125,7 @@ print_section "Remote State Setup"
 echo "Setting up remote state infrastructure..."
 
 # Navigate to remote-state directory
-cd remote-state
+cd infra/backend
 
 # Update GitHub OIDC configuration
 echo "Updating GitHub OIDC configuration..."
@@ -134,8 +134,6 @@ sed -i.bak "s/repo:sudeendrag\/infra-as-code-assignment/repo:$GITHUB_USERNAME\/$
 # Initialize and apply remote state
 echo "Initializing Terraform for remote state..."
 terraform init
-
-echo "Planning remote state deployment..."
 terraform plan
 
 echo -e "${YELLOW}⚠️  About to apply remote state infrastructure. This will create:${NC}"
@@ -188,7 +186,7 @@ echo "Updating Terraform backend configuration..."
 
 # Update backend configuration
 if [ -n "$S3_BUCKET" ] && [ -n "$DYNAMODB_TABLE" ]; then
-    cat > terraform/backend.tf << EOF
+    cat > infra/backend/backend.tf << EOF
 terraform {
   backend "s3" {
     bucket         = "$S3_BUCKET"
@@ -202,7 +200,7 @@ EOF
     
     echo -e "${GREEN}✅ Backend configuration updated${NC}"
 else
-    echo -e "${YELLOW}⚠️  Please update terraform/backend.tf manually with your S3 bucket and DynamoDB table names${NC}"
+    echo -e "${YELLOW}⚠️  Please update infra/backend/backend.tf manually with your S3 bucket and DynamoDB table names${NC}"
 fi
 
 print_section "GitHub Repository Setup"
@@ -225,7 +223,7 @@ print_section "Testing Setup"
 echo "Testing the setup..."
 
 # Test Terraform configuration
-cd terraform
+cd infra
 echo "Testing Terraform configuration..."
 terraform init
 terraform validate

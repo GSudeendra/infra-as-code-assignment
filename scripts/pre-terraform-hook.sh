@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Pre-Terraform Hook Script
-# This script validates AWS account before any Terraform operation
+# This script validates AWS account before any Terraform operation in the infra directory
 
 set -e
 
@@ -25,14 +25,14 @@ EXPECTED_PROFILE="twbeach"
 
 echo "🔍 Pre-Terraform AWS Account Validation..."
 
-# Check if we're in a Terraform directory
-if [[ "$PWD" == *"terraform"* ]] || [[ -f "main.tf" ]] || [[ -f "*.tf" ]]; then
-    print_status "Terraform operation detected, validating AWS account..."
+# Check if we're in the infra directory
+if [[ "$PWD" == *"infra"* ]] || [[ -f "main.tf" ]] || [[ -f "*.tf" ]]; then
+    print_status "Terraform operation detected in infra, validating AWS account..."
     
     # Validate AWS account
     source "$(dirname "$0")/validate-aws-account.sh"
     
     print_status "✅ AWS account validation passed. Proceeding with Terraform operation."
 else
-    print_status "Not in Terraform context, skipping AWS validation."
+    print_status "Not in infra context, skipping AWS validation."
 fi 

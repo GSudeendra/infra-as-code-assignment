@@ -109,4 +109,4 @@ fi
 
 echo ""
 print_success "🎉 AWS account validation completed successfully!"
-print_status "You can now proceed with Terraform operations." 
+print_status "You can now proceed with infra operations." 

@@ -76,7 +76,7 @@ Or use the scripts directly:
 #### `test.sh`
 - **Purpose**: Comprehensive testing suite
 - **Actions**:
-  - Run Terraform validation
+  - Run infra validation
   - Execute Python tests
   - Perform curl API tests
   - Generate test reports
@@ -105,7 +105,7 @@ Or use the scripts directly:
 - **Purpose**: Manage CloudWatch log groups
 - **Features**:
   - List existing log groups
-  - Generate Terraform import commands
+  - Generate infra import commands
   - Delete log groups (interactive)
 - **Usage**: `./scripts/utilities/import-log-groups.sh`
 
@@ -123,7 +123,7 @@ Or use the scripts directly:
 #### `pre-terraform-hook.sh`
 - **Purpose**: Pre-deployment validation
 - **Actions**:
-  - Check Terraform installation
+  - Check infra installation
   - Validate configuration
   - Ensure proper setup
 - **Usage**: `./scripts/pre-terraform-hook.sh`

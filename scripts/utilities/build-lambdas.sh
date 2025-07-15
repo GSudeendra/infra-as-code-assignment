@@ -33,7 +33,7 @@ echo "======================"
 
 # Define paths
 LAMBDA_SRC_DIR="src/lambda"
-LAMBDA_BUILD_DIR="modules/lambda"
+LAMBDA_BUILD_DIR="infra/modules/lambda"
 PROJECT_ROOT=$(pwd)
 
 # Check if we're in the project root

@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 # Configuration
 REPORTS_DIR="reports"
 SECURITY_DIR="security-reports"
-TERRAFORM_DIR="."
+TERRAFORM_DIR="infra"
 FAIL_ON_CRITICAL=true
 
 # Create reports directory
@@ -37,7 +37,7 @@ fi
 echo "✅ TFLint done"
 
 echo "🔍 Running Checkov..."
-checkov --directory . --framework terraform --output sarif --output-file-path reports/checkov-results.sarif --quiet || echo "⚠️  Checkov completed with findings"
+checkov --directory infra --framework terraform --output sarif --output-file-path reports/checkov-results.sarif --quiet || echo "⚠️  Checkov completed with findings"
 if [ ! -f reports/checkov-results.sarif ]; then
   echo '{"version":"2.1.0","runs":[]}' > reports/checkov-results.sarif
 fi

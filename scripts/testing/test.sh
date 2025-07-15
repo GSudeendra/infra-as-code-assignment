@@ -31,14 +31,14 @@ echo "====================================="
 # Check if infrastructure is deployed
 print_status "Checking if infrastructure is deployed..."
 
-if [ ! -f "terraform/terraform.tfstate" ]; then
+if [ ! -f "infra/terraform.tfstate" ]; then
     print_error "No Terraform state found. Please deploy infrastructure first with './scripts/deploy.sh'"
     exit 1
 fi
 
-# Get API Gateway URL from Terraform state
-print_status "Getting API Gateway URL from Terraform state..."
-cd terraform
+# Get API Gateway URL from infra state
+print_status "Getting API Gateway URL from infra state..."
+cd infra
 
 # Check if terraform is initialized
 if [ ! -d ".terraform" ]; then
