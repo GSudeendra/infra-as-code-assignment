@@ -51,7 +51,7 @@ jobs:
           terraform output -raw s3_bucket_name > s3_bucket_name.txt
           terraform output -raw dynamodb_table_name > dynamodb_table_name.txt
       - name: Upload Outputs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: remote-state-outputs
           path: |
@@ -66,7 +66,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Download Remote State Outputs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: remote-state-outputs
           path: remote-state-outputs
@@ -168,7 +168,7 @@ jobs:
         timeout-minutes: 5
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: tests/test-results.xml
@@ -198,7 +198,7 @@ jobs:
           echo "## Infrastructure Diagram" >> INFRASTRUCTURE_DOCS.md
           echo "![Architecture Diagram](./docs/architecture-diagram.png)" >> INFRASTRUCTURE_DOCS.md
       - name: Upload Documentation
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: terraform-documentation
           path: |
