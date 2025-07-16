@@ -315,57 +315,39 @@ After deploying the infrastructure (locally or via GitHub Actions), verify the f
 
 ---
 
-## 🚀 One-Time Bootstrap (Manual Setup)
+# Infrastructure as Code Assignment
 
-Before running Terraform or the deployment script, you must manually create the following resources:
-
-1. **S3 Bucket for Remote State**
-2. **DynamoDB Table for State Locking**
-3. **OIDC IAM Role for GitHub Actions**
-
-### Example AWS CLI Commands
-
-```
-# Create S3 bucket (replace with your unique bucket name and region)
-aws s3api create-bucket --bucket <your-remote-state-bucket> --region <region> --create-bucket-configuration LocationConstraint=<region>
-
-# Create DynamoDB table
-aws dynamodb create-table \
-  --table-name <your-lock-table> \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region <region>
-
-# Create OIDC IAM role (see AWS Console or use a bootstrap script)
-# The role must trust GitHub OIDC and have all required permissions for Terraform CI/CD.
-```
+## 🚀 Project Overview
+This project provisions a secure, production-grade AWS infrastructure using Terraform and GitHub Actions. It includes:
+- Lambda functions (register-user, verify-user)
+- API Gateway (HTTP API)
+- S3 bucket for static HTML hosting
+- DynamoDB for state locking
+- OIDC IAM role for secure CI/CD
+- Automated tests and monitoring
 
 ---
 
-## 🌟 How to Run the Deployment
+## ⚡️ Quick Start
 
-1. **Set environment variables for your state bucket and lock table:**
-   ```sh
-   export S3_BUCKET_NAME=<your-remote-state-bucket>
-   export DYNAMODB_TABLE_NAME=<your-lock-table>
-   ```
-2. **Run the deployment script:**
-   ```sh
-   ./scripts/deployment/deploy.sh
-   ```
+### 1. **Clone the Repository**
+```sh
+ git clone <your-repo-url>
+ cd <your-repo-directory>
+```
 
-- The script will use the pre-existing S3 bucket and DynamoDB table for Terraform state.
-- All other infrastructure will be managed by Terraform.
+### 2. **Configure Required GitHub Repository Variables**
+Before running any GitHub Actions workflows, set these variables in your repo:
 
----
+| Variable Name                  | Example Value                  | Purpose                                 |
+|------------------------------- |-------------------------------|-----------------------------------------|
+| `AWS_ACCOUNT_ID`               | `160071257600`                 | Your AWS account number                 |
+| `AWS_REGION`                   | `us-east-1`                    | AWS region for all resources            |
+| `TERRAFORM_EXECUTION_ROLE_NAME`| `iac-github-actions-role-dev`  | IAM role name for OIDC (must match infra)|
 
-## 🚦 Summary Table
-
-| Step              | Where to Run? | Who Runs?    | How Often? | Purpose                                 |
-|-------------------|--------------|-------------|------------|-----------------------------------------|
-| Bootstrap Script  | Local        | Admin/You   | Once       | Create S3, DynamoDB, OIDC role for TF   |
-| CI/CD Pipeline    | GitHub       | Automated   | Every push | Deploy, test, destroy all infrastructure|
+**How to set:**
+1. Go to your GitHub repo → Settings → Secrets and variables → Actions → Variables.
+2. Add each variable with the correct value.
 
 ---
 
@@ -375,29 +357,60 @@ aws dynamodb create-table \
 Before you can use GitHub Actions to deploy or destroy infrastructure, you must run a one-time bootstrap step locally to create the S3 backend, DynamoDB table, and OIDC IAM role. This is required because GitHub Actions cannot assume a role that does not exist yet (the "chicken-and-egg" problem).
 
 ### How to Run the Bootstrap Script Locally
-
 1. Ensure you have the AWS CLI installed and configured with admin credentials for your AWS account.
 2. From the project root, run:
    ```sh
    chmod +x scripts/utilities/bootstrap_backend.sh
    ./scripts/utilities/bootstrap_backend.sh
    ```
-3. This will create the S3 bucket, DynamoDB table, and check for the OIDC role. If the OIDC role does not exist, follow the script's instructions to create it manually or with a dedicated script.
-4. Once the backend and OIDC role exist, you can use GitHub Actions for all further deployments, tests, and destroys.
-
-**This is a one-time, industry-standard exception. All other infrastructure is managed by Terraform and automated via CI/CD.**
+3. This will create the S3 bucket, DynamoDB table, and check for the OIDC role. If the OIDC role does not exist, follow the script's instructions to create it (via AWS Console or Terraform).
 
 ---
 
-## 🛠️ Troubleshooting
-- If you see errors about resources already existing, ensure you are not trying to create the S3 bucket, DynamoDB table, or OIDC role in Terraform.
-- If you see IAM permission errors, double-check the OIDC role’s policy.
+## 🟢 CI/CD Pipeline Usage
+
+### **Deploy Infrastructure**
+- Trigger the **Deploy Infrastructure Pipeline** workflow in GitHub Actions (manually or on push, as configured).
+- The workflow will:
+  - Assume the OIDC role
+  - Run Terraform to deploy all infrastructure
+  - Run automated tests
+
+### **Destroy Infrastructure**
+- Trigger the **Destroy Infrastructure Pipeline** workflow in GitHub Actions.
+- The workflow will:
+  - Assume the OIDC role
+  - Run Terraform destroy to remove all infrastructure
+
+### **Bootstrap/Destroy Backend (Remote State)**
+- Use the **Bootstrap or Destroy Remote State Backend** workflow for one-time backend setup or final teardown.
+- Only run these jobs once at the start (bootstrap) and once at the end (destroy backend).
 
 ---
 
-## Questions?
+## 📝 Summary Table
 
-If you have any questions or issues, please open an issue or contact the instructor.
+| Step              | Where to Run? | Who Runs?    | How Often? | Purpose                                 |
+|-------------------|--------------|-------------|------------|-----------------------------------------|
+| Bootstrap Script  | Local        | Admin/You   | Once       | Create S3, DynamoDB, OIDC role for TF   |
+| CI/CD Pipeline    | GitHub       | Automated   | Every push | Deploy, test, destroy all infrastructure|
+| Destroy Backend   | GitHub       | Manual      | Once at end| Remove S3, DynamoDB, OIDC role          |
+
+---
+
+## 📚 Additional Notes
+- All resources are created in `us-east-1`.
+- Resource names include your initials/firstname/lastname as required.
+- See `scripts/` for deployment, utility, and test scripts.
+- See `infra/` for all Terraform modules and configuration.
+- For troubleshooting, see workflow logs in GitHub Actions.
+
+---
+
+## 🤝 Contributing & Support
+- Make frequent, bite-sized commits.
+- Open issues or PRs for improvements.
+- For help, contact the project maintainer or your instructor.
 
 ---
 

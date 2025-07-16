@@ -2,7 +2,6 @@
 
 set -e
 
-# === Production-level resource names ===
 PROJECT_NAME="iac-user-management"
 ENVIRONMENT="dev"
 AWS_REGION="us-east-1"
