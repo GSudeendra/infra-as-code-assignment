@@ -38,37 +38,17 @@ else
     exit 1
 fi
 
+# Assume these are set as environment variables or in a config file
+S3_BUCKET="$S3_BUCKET_NAME"
+DYNAMODB_TABLE="$DYNAMODB_TABLE_NAME"
 TERRAFORM_EXECUTION_ROLE_NAME="github-actions-oidc-role"
 
-print_status "Step 1: Deploying Remote State Infrastructure..."
-cd "$PROJECT_ROOT/infra/backend"
+if [ -z "$S3_BUCKET" ] || [ -z "$DYNAMODB_TABLE" ]; then
+    print_error "S3_BUCKET_NAME and DYNAMODB_TABLE_NAME must be set as environment variables."
+    exit 1
+fi
 
-print_status "Cleaning previous Terraform state (CI/CD best practice)..."
-rm -rf .terraform .terraform.lock.hcl
-
-print_status "Initializing Terraform (remote state)..."
-terraform init -upgrade
-
-print_status "Using Terraform execution role: ${TERRAFORM_EXECUTION_ROLE_NAME}"
-
-print_status "Planning remote state infrastructure..."
-terraform plan \
-  -var="terraform_execution_role_name=${TERRAFORM_EXECUTION_ROLE_NAME}" \
-  -out=tfplan
-
-print_status "Applying remote state infrastructure..."
-terraform apply -auto-approve tfplan
-
-S3_BUCKET=$(terraform output -raw s3_bucket_name)
-DYNAMODB_TABLE=$(terraform output -raw dynamodb_table_name)
-
-print_success "Remote state infrastructure deployed ✓"
-print_status "State bucket: $S3_BUCKET"
-print_status "Lock table: $DYNAMODB_TABLE"
-
-cd "$PROJECT_ROOT"
-
-print_status "Step 2: Updating Backend Configuration..."
+print_status "Step 1: Updating Backend Configuration..."
 cd "$PROJECT_ROOT/infra"
 
 cat > backend.tf << EOF
@@ -85,7 +65,7 @@ EOF
 
 print_success "Backend configuration updated ✓"
 
-print_status "Step 3: Building Lambda ZIPs..."
+print_status "Step 2: Building Lambda ZIPs..."
 cd "$PROJECT_ROOT/infra/modules/lambda"
 
 if [ -f "$PROJECT_ROOT/src/register_user.py" ]; then
@@ -106,7 +86,7 @@ print_success "Lambda ZIPs built ✓"
 
 cd "$PROJECT_ROOT/infra"
 
-print_status "Step 4: Deploying Main Infrastructure..."
+print_status "Step 3: Deploying Main Infrastructure..."
 
 print_status "Initializing Terraform..."
 terraform init
@@ -121,7 +101,7 @@ API_URL=$(terraform output -raw api_gateway_url 2>/dev/null || echo "")
 
 print_success "Main infrastructure deployed ✓"
 
-print_status "Step 5: Uploading HTML files to S3..."
+print_status "Step 4: Uploading HTML files to S3..."
 if [ -f "$PROJECT_ROOT/html/index.html" ]; then
   aws s3 cp "$PROJECT_ROOT/html/index.html" "s3://$S3_BUCKET/"
 else

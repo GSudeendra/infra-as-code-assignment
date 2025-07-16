@@ -1,31 +1,5 @@
 data "aws_caller_identity" "current" {}
 
-# Dedicated IAM Role for GitHub Actions OIDC (CI/CD only)
-resource "aws_iam_role" "github_oidc" {
-  name = "github-actions-oidc-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:GSudeendra/infra-as-code-assignment:*"
-          }
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-        }
-      }
-    ]
-  })
-}
-
 # IAM role for GitHub Actions
 resource "aws_iam_role" "github_actions" {
   name = "${var.project_prefix}-github-actions-role-${var.environment}"
