@@ -121,7 +121,7 @@ class TestInfrastructure:
             response = self.apigateway_client.get_deployments(restApiId=api_id)
             assert len(response['items']) > 0
             # Check if there's at least one deployment
-            deployments = [d for d in response['items'] if d['stageName'] == 'prod']
+            deployments = [d for d in response['items'] if d['stageName'] == 'dev']
             assert len(deployments) > 0
         except ClientError as e:
             pytest.fail(f"API Gateway {api_id} deployment not found: {e}")

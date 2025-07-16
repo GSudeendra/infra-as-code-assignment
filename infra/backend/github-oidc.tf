@@ -36,56 +36,59 @@ resource "aws_iam_role_policy" "github_actions" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      // S3
       {
         Effect = "Allow"
         Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket",
-          "s3:GetBucketLocation",
-          "s3:GetBucketVersioning",
-          "s3:CreateBucket",
-          "s3:DeleteBucket",
-          "s3:PutBucketVersioning",
-          "s3:PutBucketEncryption",
-          "s3:PutBucketAcl",
-          "s3:PutBucketPolicy",
-          "s3:GetBucketPolicy",
-          "s3:DeleteBucketPolicy"
+          "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket",
+          "s3:GetBucketLocation", "s3:GetBucketVersioning", "s3:CreateBucket",
+          "s3:DeleteBucket", "s3:PutBucketVersioning", "s3:PutBucketEncryption",
+          "s3:PutBucketAcl", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy"
         ]
         Resource = [
-          "arn:aws:s3:::*"
+          "arn:aws:s3:::${var.project_prefix}-*",
+          "arn:aws:s3:::${var.project_prefix}-*/*"
         ]
       },
+      // DynamoDB
       {
         Effect = "Allow"
         Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:CreateTable",
-          "dynamodb:DeleteTable",
-          "dynamodb:DescribeTable",
-          "dynamodb:ListTables",
-          "dynamodb:TagResource"
+          "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem",
+          "dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:DescribeTable",
+          "dynamodb:ListTables", "dynamodb:TagResource"
         ]
         Resource = [
-          "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/*"
+          "arn:aws:dynamodb:${data.aws_caller_identity.current.region}:${data.aws_caller_identity.current.account_id}:table/${var.project_prefix}-*"
         ]
       },
+      // Lambda
+      {
+        Effect = "Allow"
+        Action = ["lambda:*"]
+        Resource = "arn:aws:lambda:${data.aws_caller_identity.current.region}:${data.aws_caller_identity.current.account_id}:function:*"
+      },
+      // API Gateway
+      {
+        Effect = "Allow"
+        Action = ["apigateway:*", "execute-api:*"]
+        Resource = "*"
+      },
+      // CloudWatch Logs
+      {
+        Effect = "Allow"
+        Action = ["logs:*", "cloudwatch:*"]
+        Resource = "*"
+      },
+      // IAM (least privilege)
       {
         Effect = "Allow"
         Action = [
-          "ec2:*",
-          "iam:*",
-          "cloudfront:*",
-          "route53:*",
-          "acm:*",
-          "logs:*",
-          "lambda:*",
-          "apigateway:*",
-          "execute-api:*"
+          "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:PassRole",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+          "iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy", "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies", "iam:ListPolicies", "iam:TagRole", "iam:TagPolicy",
+          "iam:GetOpenIDConnectProvider"
         ]
         Resource = "*"
       }

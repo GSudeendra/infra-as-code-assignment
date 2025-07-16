@@ -360,6 +360,15 @@ aws dynamodb create-table \
 
 ---
 
+## 🚦 Summary Table
+
+| Step              | Where to Run? | Who Runs?    | How Often? | Purpose                                 |
+|-------------------|--------------|-------------|------------|-----------------------------------------|
+| Bootstrap Script  | Local        | Admin/You   | Once       | Create S3, DynamoDB, OIDC role for TF   |
+| CI/CD Pipeline    | GitHub       | Automated   | Every push | Deploy, test, destroy all infrastructure|
+
+---
+
 ## 🛠️ Troubleshooting
 - If you see errors about resources already existing, ensure you are not trying to create the S3 bucket, DynamoDB table, or OIDC role in Terraform.
 - If you see IAM permission errors, double-check the OIDC role’s policy.

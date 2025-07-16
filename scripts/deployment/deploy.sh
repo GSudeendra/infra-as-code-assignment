@@ -4,7 +4,7 @@ set -e
 
 # === Production-level resource names ===
 PROJECT_NAME="iac-user-management"
-ENVIRONMENT="prod"
+ENVIRONMENT="dev"
 AWS_REGION="us-east-1"
 S3_BUCKET_NAME="${PROJECT_NAME}-state-${ENVIRONMENT}"
 DYNAMODB_TABLE_NAME="${PROJECT_NAME}-lock-table-${ENVIRONMENT}"
@@ -46,42 +46,7 @@ else
     exit 1
 fi
 
-# --- Optional Admin Bootstrap Section ---
-if [ "$BOOTSTRAP_ADMIN" = "1" ]; then
-  print_status "[ADMIN] Checking and bootstrapping foundational resources..."
-
-  # S3 Bucket
-  if ! aws s3api head-bucket --bucket "$S3_BUCKET_NAME" 2>/dev/null; then
-    print_status "[ADMIN] Creating S3 bucket: $S3_BUCKET_NAME"
-    aws s3api create-bucket --bucket "$S3_BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
-  else
-    print_status "[ADMIN] S3 bucket already exists: $S3_BUCKET_NAME"
-  fi
-
-  # DynamoDB Table
-  if ! aws dynamodb describe-table --table-name "$DYNAMODB_TABLE_NAME" --region "$AWS_REGION" 2>/dev/null; then
-    print_status "[ADMIN] Creating DynamoDB table: $DYNAMODB_TABLE_NAME"
-    aws dynamodb create-table \
-      --table-name "$DYNAMODB_TABLE_NAME" \
-      --attribute-definitions AttributeName=LockID,AttributeType=S \
-      --key-schema AttributeName=LockID,KeyType=HASH \
-      --billing-mode PAY_PER_REQUEST \
-      --region "$AWS_REGION"
-  else
-    print_status "[ADMIN] DynamoDB table already exists: $DYNAMODB_TABLE_NAME"
-  fi
-
-  # OIDC Role (skipped if exists)
-  if ! aws iam get-role --role-name "$OIDC_ROLE_NAME" 2>/dev/null; then
-    print_status "[ADMIN] Please create the OIDC IAM role: $OIDC_ROLE_NAME manually or with a dedicated script."
-  else
-    print_status "[ADMIN] OIDC IAM role already exists: $OIDC_ROLE_NAME"
-  fi
-
-  export S3_BUCKET_NAME
-  export DYNAMODB_TABLE_NAME
-fi
-# --- End Admin Bootstrap Section ---
+# Removed admin bootstrap section
 
 S3_BUCKET="$S3_BUCKET_NAME"
 DYNAMODB_TABLE="$DYNAMODB_TABLE_NAME"

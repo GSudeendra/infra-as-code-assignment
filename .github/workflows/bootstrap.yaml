@@ -1,0 +1,70 @@
+name: Bootstrap or Destroy Remote State Backend
+
+description: |
+  This workflow is for one-time setup (bootstrap) and final teardown (destroy) of the Terraform remote state backend (S3, DynamoDB, OIDC role) for this project.
+  - Use 'Bootstrap Backend' job **once** before the first deployment to create the S3 bucket, DynamoDB table, and check for the OIDC role.
+  - Use 'Destroy Backend' job **once** after all infrastructure is destroyed to clean up remote state resources.
+  - Do NOT run these jobs as part of regular CI/CD. They are for admin/one-time use only.
+  - See README for more details.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose action: bootstrap or destroy'
+        required: true
+        default: 'bootstrap'
+        type: choice
+        options:
+          - bootstrap
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  bootstrap-backend:
+    if: ${{ github.event.inputs.action == 'bootstrap' }}
+    name: Bootstrap Remote State Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+      - name: Make bootstrap script executable
+        run: chmod +x scripts/utilities/bootstrap_backend.sh
+      - name: Run Bootstrap Backend Script
+        run: ./scripts/utilities/bootstrap_backend.sh
+      - name: Print Success
+        run: echo '✅ Remote state backend bootstrapped. You can now run the main deployment workflow.'
+
+  destroy-backend:
+    if: ${{ github.event.inputs.action == 'destroy' }}
+    name: Destroy Remote State Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+      - name: Make cleanup scripts executable
+        run: |
+          chmod +x scripts/utilities/cleanup-remote-state.sh
+          chmod +x scripts/utilities/delete-remote-state-artifacts.sh
+      - name: Destroy Remote State Infrastructure
+        run: ./scripts/utilities/cleanup-remote-state.sh
+      - name: Delete Remote State Artifacts
+        run: ./scripts/utilities/delete-remote-state-artifacts.sh
+      - name: Print Success
+        run: echo '✅ Remote state backend destroyed. All backend resources have been cleaned up.' 

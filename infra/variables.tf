@@ -14,7 +14,7 @@ variable "tags" {
 }
 
 variable "environment" {
-  description = "Deployment environment (e.g., dev, prod)."
+  description = "Deployment environment (e.g., dev, dev)."
   type        = string
   default     = "dev"
 }

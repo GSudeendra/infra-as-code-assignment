@@ -1,9 +1,9 @@
 terraform {
   backend "s3" {
-    bucket         = "iac-remote-state-160071257600-dev"
+    bucket         = "iac-user-management-state-dev"
     key            = "terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "iac-terraform-locks-dev"
+    dynamodb_table = "iac-user-management-lock-table-dev"
     encrypt        = true
   }
 }
