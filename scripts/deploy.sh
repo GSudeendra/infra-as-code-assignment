@@ -41,6 +41,9 @@ else
     exit 1
 fi
 
+# Hardcode the Terraform execution role name
+TERRAFORM_EXECUTION_ROLE_NAME="github-actions-oidc-role"
+
 # Step 1: Deploy Remote State Infrastructure
 print_status "Step 1: Deploying Remote State Infrastructure..."
 cd "$PROJECT_ROOT/infra/backend"
