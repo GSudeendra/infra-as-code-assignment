@@ -1,6 +1,11 @@
 data "aws_caller_identity" "current" {}
 
-# IAM role for GitHub Actions
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
 resource "aws_iam_role" "github_actions" {
   name = "${var.project_prefix}-github-actions-role-${var.environment}"
 
@@ -28,7 +33,6 @@ resource "aws_iam_role" "github_actions" {
   tags = var.tags
 }
 
-# IAM policy for GitHub Actions
 resource "aws_iam_role_policy" "github_actions" {
   name = "${var.project_prefix}-github-actions-policy-${var.environment}"
   role = aws_iam_role.github_actions.id
@@ -36,21 +40,21 @@ resource "aws_iam_role_policy" "github_actions" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      // S3
       {
         Effect = "Allow"
         Action = [
           "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket",
           "s3:GetBucketLocation", "s3:GetBucketVersioning", "s3:CreateBucket",
           "s3:DeleteBucket", "s3:PutBucketVersioning", "s3:PutBucketEncryption",
-          "s3:PutBucketAcl", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy"
+          "s3:PutBucketAcl", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
+          "iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions",
+          "kms:TagResource", "lambda:TagResource", "logs:DescribeLogGroups"
         ]
         Resource = [
           "arn:aws:s3:::${var.project_prefix}-*",
           "arn:aws:s3:::${var.project_prefix}-*/*"
         ]
       },
-      // DynamoDB
       {
         Effect = "Allow"
         Action = [
@@ -62,25 +66,21 @@ resource "aws_iam_role_policy" "github_actions" {
           "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_prefix}-*"
         ]
       },
-      // Lambda
       {
         Effect = "Allow"
         Action = ["lambda:*"]
         Resource = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:*"
       },
-      // API Gateway
       {
         Effect = "Allow"
         Action = ["apigateway:*", "execute-api:*"]
         Resource = "*"
       },
-      // CloudWatch Logs
       {
         Effect = "Allow"
         Action = ["logs:*", "cloudwatch:*"]
         Resource = "*"
       },
-      // IAM (least privilege)
       {
         Effect = "Allow"
         Action = [
@@ -125,9 +125,11 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
           "iam:DetachRolePolicy",
           "iam:GetRole",
           "iam:GetPolicy",
-          "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies",
-          "iam:ListPolicies"
+          "iam:GetPolicyVersion",
+          "iam:ListPolicyVersions",
+          "kms:TagResource",
+          "lambda:TagResource",
+          "logs:DescribeLogGroups"
         ]
         Resource = [
           "*",
@@ -138,7 +140,6 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
   })
 }
 
-# Policy to allow creation of the GitHub Actions OIDC role
 resource "aws_iam_policy" "allow_create_github_oidc_role" {
   name        = "allow-create-github-oidc-role"
   description = "Allow creation of the GitHub Actions OIDC role"
@@ -157,8 +158,7 @@ resource "aws_iam_policy" "allow_create_github_oidc_role" {
   })
 }
 
-# Attach the allow_create_github_oidc_role policy to the Terraform execution role
 resource "aws_iam_role_policy_attachment" "attach_create_github_oidc_role" {
-  role       = var.terraform_execution_role_name # Set this variable to your Terraform execution role name
+  role       = var.terraform_execution_role_name
   policy_arn = aws_iam_policy.allow_create_github_oidc_role.arn
-} 
+}
