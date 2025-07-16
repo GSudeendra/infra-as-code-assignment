@@ -315,6 +315,57 @@ After deploying the infrastructure (locally or via GitHub Actions), verify the f
 
 ---
 
+## 🚀 One-Time Bootstrap (Manual Setup)
+
+Before running Terraform or the deployment script, you must manually create the following resources:
+
+1. **S3 Bucket for Remote State**
+2. **DynamoDB Table for State Locking**
+3. **OIDC IAM Role for GitHub Actions**
+
+### Example AWS CLI Commands
+
+```
+# Create S3 bucket (replace with your unique bucket name and region)
+aws s3api create-bucket --bucket <your-remote-state-bucket> --region <region> --create-bucket-configuration LocationConstraint=<region>
+
+# Create DynamoDB table
+aws dynamodb create-table \
+  --table-name <your-lock-table> \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region <region>
+
+# Create OIDC IAM role (see AWS Console or use a bootstrap script)
+# The role must trust GitHub OIDC and have all required permissions for Terraform CI/CD.
+```
+
+---
+
+## 🌟 How to Run the Deployment
+
+1. **Set environment variables for your state bucket and lock table:**
+   ```sh
+   export S3_BUCKET_NAME=<your-remote-state-bucket>
+   export DYNAMODB_TABLE_NAME=<your-lock-table>
+   ```
+2. **Run the deployment script:**
+   ```sh
+   ./scripts/deployment/deploy.sh
+   ```
+
+- The script will use the pre-existing S3 bucket and DynamoDB table for Terraform state.
+- All other infrastructure will be managed by Terraform.
+
+---
+
+## 🛠️ Troubleshooting
+- If you see errors about resources already existing, ensure you are not trying to create the S3 bucket, DynamoDB table, or OIDC role in Terraform.
+- If you see IAM permission errors, double-check the OIDC role’s policy.
+
+---
+
 ## Questions?
 
 If you have any questions or issues, please open an issue or contact the instructor.
