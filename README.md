@@ -369,6 +369,26 @@ aws dynamodb create-table \
 
 ---
 
+## ⚠️ One-Time Local Bootstrap Required
+
+**Important:**
+Before you can use GitHub Actions to deploy or destroy infrastructure, you must run a one-time bootstrap step locally to create the S3 backend, DynamoDB table, and OIDC IAM role. This is required because GitHub Actions cannot assume a role that does not exist yet (the "chicken-and-egg" problem).
+
+### How to Run the Bootstrap Script Locally
+
+1. Ensure you have the AWS CLI installed and configured with admin credentials for your AWS account.
+2. From the project root, run:
+   ```sh
+   chmod +x scripts/utilities/bootstrap_backend.sh
+   ./scripts/utilities/bootstrap_backend.sh
+   ```
+3. This will create the S3 bucket, DynamoDB table, and check for the OIDC role. If the OIDC role does not exist, follow the script's instructions to create it manually or with a dedicated script.
+4. Once the backend and OIDC role exist, you can use GitHub Actions for all further deployments, tests, and destroys.
+
+**This is a one-time, industry-standard exception. All other infrastructure is managed by Terraform and automated via CI/CD.**
+
+---
+
 ## 🛠️ Troubleshooting
 - If you see errors about resources already existing, ensure you are not trying to create the S3 bucket, DynamoDB table, or OIDC role in Terraform.
 - If you see IAM permission errors, double-check the OIDC role’s policy.

@@ -46,7 +46,11 @@ fi
 # S3 Bucket
 if ! aws s3api head-bucket --bucket "$S3_BUCKET_NAME" 2>/dev/null; then
     print_status "Creating S3 bucket: $S3_BUCKET_NAME"
-    aws s3api create-bucket --bucket "$S3_BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+    if [ "$AWS_REGION" = "us-east-1" ]; then
+        aws s3api create-bucket --bucket "$S3_BUCKET_NAME" --region "$AWS_REGION"
+    else
+        aws s3api create-bucket --bucket "$S3_BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+    fi
     print_success "S3 bucket created: $S3_BUCKET_NAME"
 else
     print_status "S3 bucket already exists: $S3_BUCKET_NAME"
