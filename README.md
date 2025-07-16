@@ -418,3 +418,45 @@ Before you can use GitHub Actions to deploy or destroy infrastructure, you must 
 # Force trigger Wed Jul 16 05:18:41 IST 2025
 # Test OIDC authentication Wed Jul 16 05:21:13 IST 2025
 # Test OIDC with updated thumbprints Wed Jul 16 05:25:19 IST 2025
+
+---
+
+## 🚦 Prerequisites: One-Time Setup Before Using GitHub Actions
+
+Before you can use GitHub Actions to deploy or destroy infrastructure, complete these steps:
+
+1. **Run the Bootstrap Script (One Time, Local):**
+   ```sh
+   ./scripts/utilities/bootstrap_backend.sh
+   ```
+   - Creates the S3 bucket and DynamoDB table for Terraform remote state.
+
+2. **Provision the OIDC IAM Role and Infra (One Time, Local):**
+   ```sh
+   cd infra/backend
+   terraform init
+   terraform apply
+   ```
+   - Creates the IAM role for GitHub Actions and all other infrastructure.
+
+3. **Set GitHub Repository Variables (One Time):**
+   - Go to **Settings → Secrets and variables → Actions → Variables** in your GitHub repo.
+   - Add:
+     - `AWS_ACCOUNT_ID`
+     - `AWS_REGION`
+     - `TERRAFORM_EXECUTION_ROLE_NAME`
+
+4. **Now You Can Use GitHub Actions!**
+   - Push code or manually trigger the **Deploy Infrastructure Pipeline** workflow.
+
+---
+
+## 🗺️ Visual Workflow Diagram
+
+```mermaid
+graph TD
+    A[Run bootstrap_backend.sh<br/>(local, one time)] --> B[terraform apply in infra/backend<br/>(local, one time)]
+    B --> C[Set GitHub repo variables<br/>(one time)]
+    C --> D[Use GitHub Actions workflows<br/>(deploy, destroy, test)]
+```
+---

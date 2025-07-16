@@ -59,14 +59,14 @@ resource "aws_iam_role_policy" "github_actions" {
           "dynamodb:ListTables", "dynamodb:TagResource"
         ]
         Resource = [
-          "arn:aws:dynamodb:${data.aws_caller_identity.current.region}:${data.aws_caller_identity.current.account_id}:table/${var.project_prefix}-*"
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_prefix}-*"
         ]
       },
       // Lambda
       {
         Effect = "Allow"
         Action = ["lambda:*"]
-        Resource = "arn:aws:lambda:${data.aws_caller_identity.current.region}:${data.aws_caller_identity.current.account_id}:function:*"
+        Resource = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:*"
       },
       // API Gateway
       {
@@ -98,7 +98,7 @@ resource "aws_iam_role_policy" "github_actions" {
 
 resource "aws_iam_role_policy" "github_oidc_policy" {
   name = "github-actions-oidc-policy"
-  role = aws_iam_role.github_oidc.id
+  role = aws_iam_role.github_actions.id
 
   policy = jsonencode({
     Version = "2012-10-17"

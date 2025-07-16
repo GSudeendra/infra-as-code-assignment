@@ -35,4 +35,5 @@ variable "aws_profile" {
 variable "terraform_execution_role_name" {
   description = "The name of the IAM role used to execute Terraform (for policy attachment)."
   type        = string
+  default     = "iac-github-actions-role-dev"
 } 
