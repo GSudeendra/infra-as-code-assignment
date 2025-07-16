@@ -49,7 +49,8 @@ resource "aws_iam_role_policy" "github_actions" {
           "s3:PutBucketAcl", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
           "iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions",
           "kms:TagResource", "lambda:TagResource", "logs:DescribeLogGroups",
-          "kms:CreateKey", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:PutKeyPolicy"
+          "kms:CreateKey", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:PutKeyPolicy",
+          "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies"
         ]
         Resource = [
           "arn:aws:s3:::${var.project_prefix}-*",
@@ -134,7 +135,10 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
           "kms:CreateKey",
           "kms:DescribeKey",
           "kms:EnableKeyRotation",
-          "kms:PutKeyPolicy"
+          "kms:PutKeyPolicy",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies"
         ]
         Resource = [
           "*",
