@@ -140,7 +140,17 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
           "iam:CreateRole",
           "iam:PutRolePolicy",
           "iam:AttachRolePolicy",
-          "iam:CreatePolicy"
+          "iam:CreatePolicy",
+          "iam:TagRole",
+          "iam:TagPolicy",
+          "iam:DeleteRole",
+          "iam:DeletePolicy",
+          "iam:DetachRolePolicy",
+          "iam:GetRole",
+          "iam:GetPolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListPolicies"
         ]
         Resource = [
           "*",
