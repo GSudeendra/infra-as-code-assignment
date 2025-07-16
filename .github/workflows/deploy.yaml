@@ -1,4 +1,4 @@
-name: deploy-infrastructure-pipeline
+name: Deploy Infrastructure Pipeline
 
 on:
   workflow_dispatch:
@@ -16,179 +16,76 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-oidc-role
 
 jobs:
-  deploy-remote-state:
-    name: deploy-remote-state
+  deploy-infrastructure:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      # Checkout repository code
+      - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Debug Repository Context
-        run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Repository Owner: ${{ github.repository_owner }}"
-          echo "Repository Name: ${{ github.event.repository.name }}"
-          echo "Full Repository: ${{ github.repository }}"
-          echo "GitHub Actor: ${{ github.actor }}"
-          echo "GitHub Ref: ${{ github.ref }}"
-          echo "GitHub Event Name: ${{ github.event_name }}"
-          echo "Expected Trust Policy Sub: repo:GSudeendra/infra-as-code-assignment:*"
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: RemoteStateSession
-          role-duration-seconds: 1800
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.5.0"
-      - name: Terraform Init (remote-state)
-        run: |
-          cd infra/backend
-          terraform init
-      - name: Terraform Validate (remote-state)
-        run: |
-          cd infra/backend
-          terraform validate
-      - name: Terraform Apply (remote-state)
-        run: |
-          cd infra/backend
-          terraform apply -auto-approve
-      - name: Save remote state outputs
-        run: |
-          cd infra/backend
-          terraform output -raw s3_bucket_name > s3_bucket_name.txt
-          terraform output -raw dynamodb_table_name > dynamodb_table_name.txt
-      - name: Upload Outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: remote-state-outputs
-          path: |
-            infra/backend/s3_bucket_name.txt
-            infra/backend/dynamodb_table_name.txt
 
-  deploy-main-infra:
-    name: deploy-main-infra
-    runs-on: ubuntu-latest
-    needs: [deploy-remote-state]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Download Remote State Outputs
-        uses: actions/download-artifact@v4
-        with:
-          name: remote-state-outputs
-          path: remote-state-outputs
-      - name: Read Output Files into ENV
-        run: |
-          echo "S3_BUCKET=$(cat remote-state-outputs/s3_bucket_name.txt)" >> $GITHUB_ENV
-          echo "DYNAMO_TABLE=$(cat remote-state-outputs/dynamodb_table_name.txt)" >> $GITHUB_ENV
+      # Configure AWS credentials for GitHub Actions OIDC
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: MainInfraSession
+          role-session-name: DeploySession
           role-duration-seconds: 1800
-      - name: Setup Terraform
+
+      # Set up Terraform CLI
+      - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.5.0"
-      - name: Terraform Init (main)
+
+      # Ensure deploy.sh is executable and run deployment
+      - name: Deploy Infrastructure via Script
         run: |
-          cd infra
-          region="${AWS_REGION:-us-east-1}"
-          terraform init \
-            -backend-config="bucket=${S3_BUCKET}" \
-            -backend-config="dynamodb_table=${DYNAMO_TABLE}" \
-            -backend-config="region=${region}"
-      - name: Terraform Validate (main)
-        run: |
-          cd infra
-          terraform validate
-      - name: Terraform Apply (main)
-        run: |
-          cd infra
-          terraform apply -auto-approve
-      - name: Get API Gateway URL
-        run: |
-          cd infra
-          terraform output -raw api_gateway_url > ../api_gateway_url.txt
-      - name: Terraform Format Check
-        run: |
-          cd infra
-          terraform fmt -check -recursive
-      - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v3
-        with:
-          tflint_version: v0.47.0
-      - name: Init TFLint Plugins
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: tflint --init
-      - name: Run TFLint
-        run: |
-          tflint --format compact --chdir=infra
-      - name: Set up Python for Security Tools
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Install Security Scanning Tools
-        run: |
-          pip install checkov tfsec
-          mkdir -p reports
-      - name: Run Checkov
-        run: |
-          checkov -d . --framework terraform --output cli --output sarif --output-file-path reports/checkov-results.sarif --quiet
-        continue-on-error: true
-      - name: Run tfsec
-        run: |
-          tfsec . --format sarif --out reports/tfsec-results.sarif
-        continue-on-error: true
-      - name: Upload Checkov SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: reports/checkov-results.sarif
-          category: checkov
-          wait-for-processing: true
-      - name: Upload tfsec SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: reports/tfsec-results.sarif
-          category: tfsec
-          wait-for-processing: true
-      - name: Set up Python for Tests
+          chmod +x scripts/deployment/deploy.sh
+          bash scripts/deployment/deploy.sh
+
+      # Set up Python for functional API tests
+      - name: Set Up Python for Functional Tests
         uses: actions/setup-python@v4
         with:
           python-version: "3.9"
           cache: 'pip'
+
+      # Install test dependencies
       - name: Install Test Dependencies
         run: |
           cd tests
           pip install -r requirements.txt
-      - name: Announce API Test
-        run: |
-          echo "Running automated tests against deployed API Gateway at $(cat ../api_gateway_url.txt)"
-      - name: Run Functional Tests
+
+      # Run functional API tests using pytest
+      - name: Run Functional API Tests
         run: |
           cd tests
-          export API_GATEWAY_URL=$(cat ../api_gateway_url.txt)
+          # If API_GATEWAY_URL is output by deploy.sh, read it from a known location or output file
+          if [ -f ../api_gateway_url.txt ]; then
+            export API_GATEWAY_URL=$(cat ../api_gateway_url.txt)
+          fi
           python -m pytest -v --junitxml=test-results.xml
         timeout-minutes: 5
-      - name: Upload Test Results
+
+      # Upload test results as an artifact
+      - name: Upload Functional Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: functional-test-results
           path: tests/test-results.xml
-      - name: Setup Terraform docs
+
+      # Generate Terraform documentation for root and modules
+      - name: Generate Terraform Documentation
         uses: terraform-docs/gh-actions@v1.0.0
         with:
           output-file: TERRAFORM_DOCS.md
           output-method: replace
           git-push: false
           working-dir: infra
+
       - name: Generate Module Documentation
         run: |
           echo "## Module Documentation" > MODULE_DOCS.md
@@ -202,12 +99,16 @@ jobs:
               echo "" >> MODULE_DOCS.md
             fi
           done
-      - name: Combine Documentation
+
+      # Combine all documentation and add architecture diagram
+      - name: Combine and Finalize Documentation
         run: |
           cat TERRAFORM_DOCS.md MODULE_DOCS.md > INFRASTRUCTURE_DOCS.md
           echo "## Infrastructure Diagram" >> INFRASTRUCTURE_DOCS.md
           echo "![Architecture Diagram](./docs/architecture-diagram.png)" >> INFRASTRUCTURE_DOCS.md
-      - name: Upload Documentation
+
+      # Upload documentation as an artifact
+      - name: Upload Terraform Documentation
         uses: actions/upload-artifact@v4
         with:
           name: terraform-documentation
