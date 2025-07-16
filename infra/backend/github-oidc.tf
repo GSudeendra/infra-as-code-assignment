@@ -136,7 +136,11 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
           "lambda:*",
           "apigateway:*",
           "iam:PassRole",
-          "iam:GetOpenIDConnectProvider"
+          "iam:GetOpenIDConnectProvider",
+          "iam:CreateRole",
+          "iam:PutRolePolicy",
+          "iam:AttachRolePolicy",
+          "iam:CreatePolicy"
         ]
         Resource = [
           "*",
