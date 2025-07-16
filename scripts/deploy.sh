@@ -45,8 +45,11 @@ fi
 print_status "Step 1: Deploying Remote State Infrastructure..."
 cd "$PROJECT_ROOT/infra/backend"
 
+print_status "Cleaning previous Terraform state (CI/CD best practice)..."
+rm -rf .terraform .terraform.lock.hcl
+
 print_status "Initializing Terraform (remote state)..."
-terraform init
+terraform init -upgrade
 
 print_status "Using Terraform execution role: ${TERRAFORM_EXECUTION_ROLE_NAME}"
 
