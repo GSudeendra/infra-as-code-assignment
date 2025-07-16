@@ -3,8 +3,8 @@
 # Destroy wrapper script
 # Runs the destroy script from the organized scripts directory
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DESTROY_SCRIPT="$SCRIPT_DIR/scripts/deployment/destroy.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+DESTROY_SCRIPT="$SCRIPT_DIR/scripts/destroy.sh"
 
 if [ ! -f "$DESTROY_SCRIPT" ]; then
     echo "❌ Destroy script not found: $DESTROY_SCRIPT"
