@@ -47,11 +47,17 @@ resource "aws_iam_role_policy" "github_actions" {
           "s3:GetBucketLocation", "s3:GetBucketVersioning", "s3:CreateBucket",
           "s3:DeleteBucket", "s3:PutBucketVersioning", "s3:PutBucketEncryption",
           "s3:PutBucketAcl", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
-          "iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions",
-          "kms:TagResource", "lambda:TagResource", "logs:DescribeLogGroups",
-          "kms:CreateKey", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:PutKeyPolicy",
-          "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
-          "kms:GetKeyRotationStatus", "kms:ListKeys", "kms:ListAliases", "kms:GetKeyPolicy", "kms:PutKeyPolicy", "kms:DisableKeyRotation", "kms:DeleteKey", "kms:UntagResource"
+          "s3:PutObjectAcl", "s3:GetObjectAcl", "s3:ListAllMyBuckets",
+          "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem",
+          "dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:DescribeTable",
+          "dynamodb:ListTables", "dynamodb:TagResource", "dynamodb:Scan", "dynamodb:UpdateItem",
+          "lambda:*",
+          "apigateway:*", "execute-api:*",
+          "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogGroups", "logs:DeleteLogGroup",
+          "cloudwatch:*", "cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms",
+          "kms:TagResource", "kms:UntagResource", "kms:CreateKey", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:PutKeyPolicy", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListKeys", "kms:ListAliases", "kms:DisableKeyRotation", "kms:DeleteKey", "kms:ListResourceTags",
+          "xray:PutTraceSegments", "xray:PutTelemetryRecords",
+          "iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions", "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListPolicies", "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:PassRole", "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:CreatePolicy", "iam:DeletePolicy", "iam:TagRole", "iam:TagPolicy", "iam:GetOpenIDConnectProvider"
         ]
         Resource = [
           "arn:aws:s3:::${var.project_prefix}-*",
