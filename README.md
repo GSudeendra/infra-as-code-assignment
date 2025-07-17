@@ -1,165 +1,174 @@
-# Infra as Code – AWS Serverless User Management
+# AWS Serverless User Management – Infrastructure as Code
 
-## Project Overview
-
-This project implements a serverless user registration and verification system on AWS using Infrastructure as Code (IaC) with Terraform. The solution leverages API Gateway, Lambda, DynamoDB, and S3, and is fully automated with CI/CD via GitHub Actions.
-
-- **API Gateway**: Exposes `/register` and `/` endpoints.
-- **Lambda Functions**: Handle user registration and verification.
-- **DynamoDB**: Stores user data.
-- **S3**: Hosts static HTML pages for success/error responses.
-- **CI/CD**: Automated deploy, test, lint, and destroy via GitHub Actions.
-
----
-
-## Table of Contents
-
-- [Project Overview](#project-overview)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Deployment Instructions](#deployment-instructions)
-- [Testing Instructions](#testing-instructions)
-- [Destruction Instructions](#destruction-instructions)
-- [CI/CD & GitHub Actions](#cicd--github-actions)
-- [Design Decisions](#design-decisions)
-- [Module Usage](#module-usage)
-- [Secrets, Variables & Setup](#secrets-variables--setup)
-- [Milestone Checklist](#milestone-checklist)
+## Overview
+A production-grade, serverless user management system on AWS, fully automated with Terraform and GitHub Actions. Features secure OIDC authentication, modular infrastructure, and CI/CD pipelines for deployment, testing, and teardown.
 
 ---
 
 ## Architecture
-
-![Architecture Diagram](./docs/architecture-diagram.png)
-
-- **API Gateway** routes requests to Lambda functions.
-- **Lambda** functions interact with DynamoDB and S3.
-- **DynamoDB** stores user records.
-- **S3** serves static HTML for verification results.
-
----
-
-## Project Structure
-
-```
-├── infra/                  # All Terraform code
-│   ├── main.tf             # Main infrastructure
-│   ├── backend/            # Remote state & OIDC setup
-│   └── modules/            # Custom Terraform modules
-├── src/                    # Lambda source code (Python)
-├── html/                   # Static HTML files for S3
-├── tests/                  # Automated test suite (pytest)
-├── scripts/                # Helper scripts for deployment, testing, etc.
-├── .github/workflows/      # GitHub Actions CI/CD pipelines
-└── README.md               # This file
-```
+- **API Gateway**: Exposes REST endpoints for user registration and verification
+- **Lambda Functions**: Stateless compute for business logic
+- **DynamoDB**: User data storage
+- **S3**: Static HTML hosting for user feedback
+- **CloudWatch/KMS**: Monitoring and secure log encryption
+- **GitHub Actions OIDC**: Secure, short-lived AWS credentials for CI/CD
 
 ---
 
-## Deployment Instructions
+## Prerequisites
+- AWS account with admin access
+- AWS CLI installed and configured
+- Terraform >= 1.5.0
+- Python 3.8+ (for tests)
+- GitHub repository (forked or cloned)
 
-### **Milestone 1: Local Deployment**
+---
 
-1. **Clone the repository**  
+## Quick Start: One-Time Bootstrap & OIDC Setup
+
+> **You must bootstrap the backend and OIDC role locally before using CI/CD.**
+
+1. **Clone the repository:**
    ```sh
    git clone <your-repo-url>
-   cd <your-repo>
+   cd <your-repo-directory>
    ```
-
-2. **Initialize and apply Terraform**  
+2. **Run the backend bootstrap script:**
    ```sh
-   cd infra
-   terraform init
-   terraform apply
+   chmod +x scripts/utilities/bootstrap_backend.sh
+   ./scripts/utilities/bootstrap_backend.sh
    ```
-
-3. **Get the API Gateway URL**  
-   ```sh
-   terraform output api_gateway_url
-   ```
-
----
-
-### **Milestone 2: Remote State & Full Infra**
-
-1. **Deploy remote state backend**  
+   - This creates the S3 bucket, DynamoDB table, and checks for the OIDC IAM role.
+3. **Provision the OIDC IAM role and backend infra:**
    ```sh
    cd infra/backend
    terraform init
    terraform apply
    ```
-
-2. **Deploy main infrastructure (using remote state)**  
-   ```sh
-   cd ../
-   terraform init \
-     -backend-config="bucket=<your-s3-bucket>" \
-     -backend-config="dynamodb_table=<your-dynamodb-table>" \
-     -backend-config="region=<your-region>"
-   terraform apply
-   ```
-
-3. **Upload HTML files to S3**  
-   ```sh
-   aws s3 cp html/index.html s3://<your-bucket>/
-   aws s3 cp html/error.html s3://<your-bucket>/
-   ```
+   - This creates the IAM role for GitHub Actions and remote state infra.
+4. **Set required GitHub repository variables:**
+   - Go to **GitHub → Settings → Secrets and variables → Actions → Variables**
+   - Add:
+     | Name                        | Example Value                  | Purpose                      |
+     |-----------------------------|-------------------------------|------------------------------|
+     | `AWS_ACCOUNT_ID`            | `123456789012`                | Your AWS account number      |
+     | `AWS_REGION`                | `us-east-1`                   | AWS region                   |
+     | `TERRAFORM_EXECUTION_ROLE_NAME` | `iac-github-actions-role-dev` | OIDC IAM role name           |
 
 ---
 
-### **Milestone 3: CI/CD Deployment (Recommended)**
+## CI/CD Usage (GitHub Actions)
 
-1. **Fork this repository** to your own GitHub account.
-2. **Configure GitHub repository variables**:
-   - `AWS_ACCOUNT_ID`
-   - `AWS_REGION`
-3. **Ensure OIDC/IAM role is set up** (see [Secrets, Variables & Setup](#secrets-variables--setup)).
-4. **Run the deploy workflow**:
-   - Go to the "Actions" tab in GitHub.
-   - Select `deploy-infrastructure-pipeline` and click "Run workflow".
-5. **Monitor the workflow** for completion and outputs.
+- **Deploy Infrastructure:**
+  - Trigger the `deploy-infrastructure-pipeline` workflow (manually or on push).
+  - The workflow will:
+    - Assume the OIDC role
+    - Run Terraform to deploy all infrastructure
+    - Run automated tests
+- **Destroy Infrastructure:**
+  - Trigger the `destroy-infrastructure-pipeline` workflow.
+  - The workflow will:
+    - Assume the OIDC role
+    - Run Terraform destroy to remove all infrastructure
+- **Bootstrap/Destroy Backend:**
+  - Use the `bootstrap-backend` or `destroy-backend` workflow for one-time backend setup or teardown.
+
+### Visual Workflow
+```mermaid
+graph TD
+    A[Run bootstrap_backend.sh (local, one time)] --> B[terraform apply in infra/backend (local, one time)]
+    B --> C[Set GitHub repo variables (one time)]
+    C --> D[Use GitHub Actions workflows (deploy, destroy, test)]
+```
 
 ---
 
-## Testing Instructions
+## Manual Terraform Usage (Advanced)
 
-### **Automated Tests**
-
-1. **Set up Python environment**  
-   ```sh
-   cd tests
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. **Run tests**  
-   ```sh
-   pytest -v
-   ```
-
-### **Manual API Testing**
-
-- **Register a user**  
+- **Deploy main infrastructure:**
   ```sh
-  curl -X PUT "<API_GATEWAY_URL>/register?userId=testuser"
+  cd infra
+  terraform init
+  terraform apply
   ```
-- **Verify a user**  
+- **Destroy main infrastructure:**
   ```sh
-  curl "<API_GATEWAY_URL>/?userId=testuser"
+  terraform destroy
+  ```
+- **Destroy backend (after all else is destroyed):**
+  ```sh
+  cd backend
+  terraform destroy
   ```
 
-- **Check S3 for HTML files**  
-  - Visit the S3 bucket website endpoint to view `index.html` and `error.html`.
+---
+
+## Testing
+
+- **Automated tests:**
+  ```sh
+  cd tests
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+  pytest -v
+  ```
+- **Manual API testing:**
+  - Register user:
+    ```sh
+    curl -X POST "<API_GATEWAY_URL>/register?userId=testuser"
+    ```
+  - Verify user:
+    ```sh
+    curl "<API_GATEWAY_URL>/?userId=testuser"
+    ```
+
+---
+
+## Destruction & Cleanup
+- **Via GitHub Actions:** Use the `destroy-infrastructure-pipeline` and `destroy-backend` workflows.
+- **Manual:** See above for Terraform commands. Empty S3 buckets before destroying if needed:
+  ```sh
+  aws s3 rm s3://<your-bucket> --recursive
+  ```
+
+---
+
+## Troubleshooting
+- **OIDC errors:** Ensure the IAM role and trust policy match your repo and OIDC provider.
+- **Permission errors:** Update the IAM policy in `infra/backend/github-oidc.tf` as needed.
+- **Resource already exists:** Use `terraform import` to bring existing resources into state.
+- **Workflow failures:** Check GitHub Actions logs for details.
+
+---
+
+## Project Structure
+```
+├── infra/                  # Terraform code (main, backend, modules)
+├── src/                    # Lambda source code (Python)
+├── html/                   # Static HTML for S3
+├── tests/                  # Automated test suite
+├── scripts/                # Deployment, utility, and test scripts
+├── .github/workflows/      # GitHub Actions pipelines
+└── README.md               # This file
+```
+
+---
+
+## Contributing & Support
+- Fork, branch, and open PRs for improvements.
+- For help, open an issue or contact the maintainer.
+
+---
+
+**All resources are created in `us-east-1`. Resource names are unique and follow project conventions.**
 
 ---
 
 ## Post-Deployment Verification Checklist
-
 After deploying the infrastructure (locally or via GitHub Actions), verify the following before destruction:
 
-### **A. API Gateway Endpoints**
-
+### A. API Gateway Endpoints
 - **Get the API Gateway URL:**
   ```sh
   terraform output -raw api_gateway_url
@@ -168,175 +177,47 @@ After deploying the infrastructure (locally or via GitHub Actions), verify the f
   ```sh
   curl -X POST "<API_GATEWAY_URL>/register?userId=testuser"
   ```
-  - **Expected:** JSON response confirming registration.
-
+  - Expected: JSON response confirming registration.
 - **Verify a registered user:**
   ```sh
   curl "<API_GATEWAY_URL>/?userId=testuser"
   ```
-  - **Expected:** Returns the HTML content of `index.html` (user verified).
-
+  - Expected: Returns the HTML content of index.html (user verified).
 - **Verify a non-existent user:**
   ```sh
   curl "<API_GATEWAY_URL>/?userId=nouser"
   ```
-  - **Expected:** Returns the HTML content of `error.html` (verification failed).
+  - Expected: Returns the HTML content of error.html (verification failed).
 
----
+### B. S3 Bucket
+- Go to AWS S3 Console (us-east-1 region).
+- Search for your bucket (e.g., static-content-<env>-<random>).
+- Check that both index.html and error.html are present.
+- (Optional): Open the S3 static website endpoint in your browser to view the HTML files.
 
-### **B. S3 Bucket**
+### C. DynamoDB Table
+- Go to AWS DynamoDB Console (us-east-1 region).
+- Find your table (e.g., users-<env>-<random>).
+- Check that registered users appear as items in the table.
 
-- **Go to AWS S3 Console** (`us-east-1` region).
-- **Search for your bucket** (e.g., `static-content-<env>-<random>`).
-- **Check that both `index.html` and `error.html` are present.**
-- **(Optional):** Open the S3 static website endpoint in your browser to view the HTML files.
+### D. Lambda and CloudWatch Logs
+- Go to AWS Lambda Console (us-east-1 region).
+- Check that both register_user and verify_user functions exist.
+- Go to CloudWatch Logs Console.
+- Check log groups /aws/lambda/register_user and /aws/lambda/verify_user for recent activity and errors.
 
----
-
-### **C. DynamoDB Table**
-
-- **Go to AWS DynamoDB Console** (`us-east-1` region).
-- **Find your table** (e.g., `users-<env>-<random>`).
-- **Check that registered users appear as items in the table.**
-
----
-
-### **D. Lambda and CloudWatch Logs**
-
-- **Go to AWS Lambda Console** (`us-east-1` region).
-- **Check that both `register_user` and `verify_user` functions exist.**
-- **Go to CloudWatch Logs Console**.
-- **Check log groups `/aws/lambda/register_user` and `/aws/lambda/verify_user` for recent activity and errors.**
-
----
-
-### **E. Automated Tests**
-
-- **Run the automated test suite:**
+### E. Automated Tests
+- Run the automated test suite:
   ```sh
   cd tests
   pytest -v
   ```
-  - **Expected:** All tests should pass.
-
----
-
-## Destruction Instructions
-
-### **Via GitHub Actions (Milestone 3)**
-
-1. Go to the "Actions" tab.
-2. Select `destroy-infrastructure-pipeline` and click "Run workflow".
-3. Confirm all resources are deleted in AWS Console.
-
-### **Manual Destruction**
-
-1. **Destroy main infrastructure**  
-   ```sh
-   cd infra
-   terraform destroy
-   ```
-2. **Destroy remote state backend**  
-   ```sh
-   cd backend
-   terraform destroy
-   ```
-3. **If S3 bucket is not empty, empty it first**  
-   ```sh
-   aws s3 rm s3://<your-bucket> --recursive
-   ```
+  - Expected: All tests should pass.
 
 ---
 
 ## CI/CD & GitHub Actions
 
-- **Workflows**: `.github/workflows/deploy.yaml` and `.github/workflows/destroy.yaml`
-- **Features**:
-  - Deploys remote state and main infra
-  - Runs formatting, linting, security checks, and tests
-  - Generates documentation
-  - Destroys infra in correct order
-- **Setup**:
-  - Requires OIDC-enabled IAM role in AWS
-  - Set `AWS_ACCOUNT_ID` and `AWS_REGION` as repository variables
-- **Troubleshooting**:
-  - Check workflow logs for errors
-  - Ensure IAM role trust policy allows your repo
-- **Note:** The deploy workflow will automatically call the API Gateway endpoints and run the automated test suite after infrastructure is deployed. This ensures that your API is live and functional. You can view test results and API call outputs in the Actions tab under the deploy workflow run.
-
----
-
-## Design Decisions
-
-- **Modular Terraform**: All resources are organized into modules for clarity and reusability.
-- **Remote State**: Uses S3 + DynamoDB for safe, collaborative state management.
-- **Least Privilege IAM**: All roles and policies are tightly scoped.
-- **CI/CD**: All deployments, tests, and checks are automated for reliability and reproducibility.
-- **Public Modules**: Used official S3 module for best practices; custom modules for learning and flexibility.
-
----
-
-## Module Usage
-
-- **Custom Modules**: API Gateway, Lambda, DynamoDB, Monitoring.
-- **Public Modules**: [terraform-aws-modules/s3-bucket/aws](https://registry.terraform.io/modules/terraform-aws-modules/s3-bucket/aws/latest) (if used).
-- **Why**: Custom modules for learning and control; public modules for reliability and community best practices.
-
----
-
-## Secrets, Variables & Setup
-
-- **GitHub Variables**:
-  - `AWS_ACCOUNT_ID`: Your AWS account number
-  - `AWS_REGION`: AWS region to deploy to
-- **OIDC Setup**:
-  - Ensure an IAM role exists with trust policy for GitHub OIDC
-  - Role name: `github-oidc-<owner>-<repo>`
-- **How to Fork and Run**:
-  1. Fork repo
-  2. Set variables in GitHub repo settings
-  3. Run workflows from Actions tab
-
----
-
-## Milestone Checklist
-
-| Requirement                           | Milestone 1   | Milestone 2          | Milestone 3                 |
-| ------------------------------------- | ------------- | -------------------- | --------------------------- |
-| Project overview                      | ✅             | ✅                    | ✅                           |
-| Infrastructure deployment steps       | ✅             | ✅ (remote state too) | ✅ (via CI/CD)               |
-| Infrastructure destruction steps      | ✅             | ✅                    | ✅ (via GitHub Actions)      |
-| Test setup & how to run tests         | ✅ (1 test)    | ✅ (6+ tests)         | ✅ (integrated in CI/CD)     |
-| Clear outputs (API Gateway URL, etc.) | ✅             | ✅                    | ✅                           |
-| Module usage explanation              | ❌ Optional    | ✅                    | ✅                           |
-| GitHub Actions setup                  | ❌             | ❌                    | ✅ (secrets, OIDC, triggers) |
-| Design decisions                      | ✅ Recommended | ✅ Recommended        | ✅ Required                  |
-| Project structure overview            | ✅ Recommended | ✅ Recommended        | ✅ Recommended               |
-
----
-
-# Infrastructure as Code Assignment
-
-## 🚀 Project Overview
-This project provisions a secure, production-grade AWS infrastructure using Terraform and GitHub Actions. It includes:
-- Lambda functions (register-user, verify-user)
-- API Gateway (HTTP API)
-- S3 bucket for static HTML hosting
-- DynamoDB for state locking
-- OIDC IAM role for secure CI/CD
-- Automated tests and monitoring
-
----
-
-## ⚡️ Quick Start
-
-### 1. **Clone the Repository**
-```sh
- git clone <your-repo-url>
- cd <your-repo-directory>
-```
-
-### 2. **Configure Required GitHub Repository Variables**
 Before running any GitHub Actions workflows, set these variables in your repo:
 
 | Variable Name                  | Example Value                  | Purpose                                 |
@@ -345,118 +226,4 @@ Before running any GitHub Actions workflows, set these variables in your repo:
 | `AWS_REGION`                   | `us-east-1`                    | AWS region for all resources            |
 | `TERRAFORM_EXECUTION_ROLE_NAME`| `iac-github-actions-role-dev`  | IAM role name for OIDC (must match infra)|
 
-**How to set:**
-1. Go to your GitHub repo → Settings → Secrets and variables → Actions → Variables.
-2. Add each variable with the correct value.
-
----
-
-## ⚠️ One-Time Local Bootstrap Required
-
-**Important:**
-Before you can use GitHub Actions to deploy or destroy infrastructure, you must run a one-time bootstrap step locally to create the S3 backend, DynamoDB table, and OIDC IAM role. This is required because GitHub Actions cannot assume a role that does not exist yet (the "chicken-and-egg" problem).
-
-### How to Run the Bootstrap Script Locally
-1. Ensure you have the AWS CLI installed and configured with admin credentials for your AWS account.
-2. From the project root, run:
-   ```sh
-   chmod +x scripts/utilities/bootstrap_backend.sh
-   ./scripts/utilities/bootstrap_backend.sh
-   ```
-3. This will create the S3 bucket, DynamoDB table, and check for the OIDC role. If the OIDC role does not exist, follow the script's instructions to create it (via AWS Console or Terraform).
-
----
-
-## 🟢 CI/CD Pipeline Usage
-
-### **Deploy Infrastructure**
-- Trigger the **Deploy Infrastructure Pipeline** workflow in GitHub Actions (manually or on push, as configured).
-- The workflow will:
-  - Assume the OIDC role
-  - Run Terraform to deploy all infrastructure
-  - Run automated tests
-
-### **Destroy Infrastructure**
-- Trigger the **Destroy Infrastructure Pipeline** workflow in GitHub Actions.
-- The workflow will:
-  - Assume the OIDC role
-  - Run Terraform destroy to remove all infrastructure
-
-### **Bootstrap/Destroy Backend (Remote State)**
-- Use the **Bootstrap or Destroy Remote State Backend** workflow for one-time backend setup or final teardown.
-- Only run these jobs once at the start (bootstrap) and once at the end (destroy backend).
-
----
-
-## 📝 Summary Table
-
-| Step              | Where to Run? | Who Runs?    | How Often? | Purpose                                 |
-|-------------------|--------------|-------------|------------|-----------------------------------------|
-| Bootstrap Script  | Local        | Admin/You   | Once       | Create S3, DynamoDB, OIDC role for TF   |
-| CI/CD Pipeline    | GitHub       | Automated   | Every push | Deploy, test, destroy all infrastructure|
-| Destroy Backend   | GitHub       | Manual      | Once at end| Remove S3, DynamoDB, OIDC role          |
-
----
-
-## 📚 Additional Notes
-- All resources are created in `us-east-1`.
-- Resource names include your initials/firstname/lastname as required.
-- See `scripts/` for deployment, utility, and test scripts.
-- See `infra/` for all Terraform modules and configuration.
-- For troubleshooting, see workflow logs in GitHub Actions.
-
----
-
-## 🤝 Contributing & Support
-- Make frequent, bite-sized commits.
-- Open issues or PRs for improvements.
-- For help, contact the project maintainer or your instructor.
-
----
-
-**_Good luck, and happy automating!_**
-# Force trigger Wed Jul 16 05:18:41 IST 2025
-# Test OIDC authentication Wed Jul 16 05:21:13 IST 2025
-# Test OIDC with updated thumbprints Wed Jul 16 05:25:19 IST 2025
-
----
-
-## 🚦 Prerequisites: One-Time Setup Before Using GitHub Actions
-
-Before you can use GitHub Actions to deploy or destroy infrastructure, complete these steps:
-
-1. **Run the Bootstrap Script (One Time, Local):**
-   ```sh
-   ./scripts/utilities/bootstrap_backend.sh
-   ```
-   - Creates the S3 bucket and DynamoDB table for Terraform remote state.
-
-2. **Provision the OIDC IAM Role and Infra (One Time, Local):**
-   ```sh
-   cd infra/backend
-   terraform init
-   terraform apply
-   ```
-   - Creates the IAM role for GitHub Actions and all other infrastructure.
-
-3. **Set GitHub Repository Variables (One Time):**
-   - Go to **Settings → Secrets and variables → Actions → Variables** in your GitHub repo.
-   - Add:
-     - `AWS_ACCOUNT_ID`
-     - `AWS_REGION`
-     - `TERRAFORM_EXECUTION_ROLE_NAME`
-
-4. **Now You Can Use GitHub Actions!**
-   - Push code or manually trigger the **Deploy Infrastructure Pipeline** workflow.
-
----
-
-## 🗺️ Visual Workflow Diagram
-
-```mermaid
-graph TD
-    A[Run bootstrap_backend.sh<br/>(local, one time)] --> B[terraform apply in infra/backend<br/>(local, one time)]
-    B --> C[Set GitHub repo variables<br/>(one time)]
-    C --> D[Use GitHub Actions workflows<br/>(deploy, destroy, test)]
-```
----
+- After setting these, you can trigger the deploy and destroy workflows from the GitHub Actions tab as described above.

@@ -140,7 +140,8 @@ resource "aws_iam_role_policy" "github_oidc_policy" {
           "iam:GetRolePolicy",
           "iam:ListRolePolicies",
           "iam:ListAttachedRolePolicies",
-          "kms:GetKeyRotationStatus", "kms:ListKeys", "kms:ListAliases", "kms:GetKeyPolicy", "kms:PutKeyPolicy", "kms:DisableKeyRotation", "kms:DeleteKey", "kms:UntagResource"
+          "kms:GetKeyRotationStatus", "kms:ListKeys", "kms:ListAliases", "kms:GetKeyPolicy", "kms:PutKeyPolicy", "kms:DisableKeyRotation", "kms:DeleteKey", "kms:UntagResource",
+          "kms:ListResourceTags"
         ]
         Resource = [
           "*",

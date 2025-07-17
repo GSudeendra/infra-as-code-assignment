@@ -43,8 +43,8 @@ TERRAFORM_EXECUTION_ROLE_NAME="github-actions-oidc-role"
 print_status "Step 1: Destroying Main Infrastructure..."
 cd "$PROJECT_ROOT/infra"
 
-print_status "Initializing Terraform..."
-terraform init
+    print_status "Initializing Terraform..."
+    terraform init
 
 print_status "Destroying main infrastructure..."
 terraform destroy -auto-approve
