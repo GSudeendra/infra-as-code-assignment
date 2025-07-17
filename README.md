@@ -53,7 +53,7 @@ A production-grade, serverless user management system on AWS, fully automated wi
      |-----------------------------|-------------------------------|------------------------------|
      | `AWS_ACCOUNT_ID`            | `123456789012`                | Your AWS account number      |
      | `AWS_REGION`                | `us-east-1`                   | AWS region                   |
-     | `TERRAFORM_EXECUTION_ROLE_NAME` | `iac-github-actions-role-dev` | OIDC IAM role name           |
+     | `TERRAFORM_EXECUTION_ROLE_NAME` | `iac-github-actions-role-sg-dev` | OIDC IAM role name           |
 
 ---
 
@@ -224,6 +224,6 @@ Before running any GitHub Actions workflows, set these variables in your repo:
 |------------------------------- |-------------------------------|-----------------------------------------|
 | `AWS_ACCOUNT_ID`               | `160071257600`                 | Your AWS account number                 |
 | `AWS_REGION`                   | `us-east-1`                    | AWS region for all resources            |
-| `TERRAFORM_EXECUTION_ROLE_NAME`| `iac-github-actions-role-dev`  | IAM role name for OIDC (must match infra)|
+| `TERRAFORM_EXECUTION_ROLE_NAME`| `iac-github-actions-role-sg-dev`  | IAM role name for OIDC (must match infra)|
 
 - After setting these, you can trigger the deploy and destroy workflows from the GitHub Actions tab as described above.
