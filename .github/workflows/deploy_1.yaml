@@ -87,27 +87,6 @@ jobs:
           git-push: false
           working-dir: infra
 
-      - name: Generate Module Documentation
-        run: |
-          echo "## Module Documentation" > MODULE_DOCS.md
-          for module in $(ls -d infra/modules/*); do
-            if [ -d "$module" ]; then
-              module_name=$(basename $module)
-              echo "### Module: $module_name" >> MODULE_DOCS.md
-              echo "\`\`\`" >> MODULE_DOCS.md
-              terraform-docs markdown table $module >> MODULE_DOCS.md
-              echo "\`\`\`" >> MODULE_DOCS.md
-              echo "" >> MODULE_DOCS.md
-            fi
-          done
-
-      # Combine all documentation and add architecture diagram
-      - name: Combine and Finalize Documentation
-        run: |
-          cat TERRAFORM_DOCS.md MODULE_DOCS.md > INFRASTRUCTURE_DOCS.md
-          echo "## Infrastructure Diagram" >> INFRASTRUCTURE_DOCS.md
-          echo "![Architecture Diagram](./docs/architecture-diagram.png)" >> INFRASTRUCTURE_DOCS.md
-
       # Upload documentation as an artifact
       - name: Upload Terraform Documentation
         uses: actions/upload-artifact@v4
@@ -115,5 +94,3 @@ jobs:
           name: terraform-documentation
           path: |
             TERRAFORM_DOCS.md
-            MODULE_DOCS.md
-            INFRASTRUCTURE_DOCS.md
