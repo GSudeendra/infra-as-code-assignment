@@ -31,17 +31,16 @@ print_warning() {
 
 # Get API Gateway URL
 print_status "Getting API Gateway URL..."
-if [ -d "infra" ]; then
-    cd infra
-    API_URL=$(terraform output -raw api_gateway_url 2>/dev/null || echo "")
-    cd ..
-else
-    print_error "infra directory not found. Please run this script from the project root."
+INFRA_OUTPUTS_FILE="infra/infra_outputs.json"
+if [ ! -f "$INFRA_OUTPUTS_FILE" ]; then
+    print_error "infra_outputs.json not found at $INFRA_OUTPUTS_FILE. Please ensure infrastructure is deployed and outputs are exported."
     exit 1
 fi
 
+API_URL=$(python3 -c "import sys, json; print(json.load(open('$INFRA_OUTPUTS_FILE'))['api_gateway_url']['value'])" 2>/dev/null || echo "")
+
 if [ -z "$API_URL" ]; then
-    print_error "Could not get API Gateway URL. Please ensure infrastructure is deployed."
+    print_error "Could not get API Gateway URL from $INFRA_OUTPUTS_FILE. Please ensure infrastructure is deployed and outputs are exported."
     exit 1
 fi
 
