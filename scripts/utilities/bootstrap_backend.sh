@@ -69,10 +69,52 @@ else
     print_status "DynamoDB table already exists: $DYNAMODB_TABLE_NAME"
 fi
 
+# OIDC Provider
+OIDC_PROVIDER_URL="token.actions.githubusercontent.com"
+OIDC_PROVIDER_ARN="arn:aws:iam::$(aws sts get-caller-identity --query 'Account' --output text):oidc-provider/$OIDC_PROVIDER_URL"
+
+if ! aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[*].Arn' --output text | grep -q "$OIDC_PROVIDER_URL"; then
+    print_status "Creating GitHub OIDC provider: $OIDC_PROVIDER_URL"
+    aws iam create-open-id-connect-provider \
+      --url "https://$OIDC_PROVIDER_URL" \
+      --client-id-list "sts.amazonaws.com" \
+      --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1" \
+      --region "$AWS_REGION"
+    print_success "OIDC provider created: $OIDC_PROVIDER_URL"
+else
+    print_status "OIDC provider already exists: $OIDC_PROVIDER_URL"
+fi
+
 # OIDC Role
 if ! aws iam get-role --role-name "$OIDC_ROLE_NAME" 2>/dev/null; then
-    print_warning "OIDC IAM role not found: $OIDC_ROLE_NAME"
-    print_warning "Please create the OIDC IAM role manually or with a dedicated script before running CI/CD."
+    print_status "Creating OIDC IAM role: $OIDC_ROLE_NAME"
+    TRUST_POLICY=$(cat <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "$OIDC_PROVIDER_ARN"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:sudeendrag/infra-as-code-assignment:*"
+        }
+      }
+    }
+  ]
+}
+EOF
+)
+    aws iam create-role \
+      --role-name "$OIDC_ROLE_NAME" \
+      --assume-role-policy-document "$TRUST_POLICY" \
+      --description "OIDC role for GitHub Actions CI/CD pipeline" \
+      --region "$AWS_REGION"
+    print_success "OIDC IAM role created: $OIDC_ROLE_NAME"
 else
     print_status "OIDC IAM role already exists: $OIDC_ROLE_NAME"
 fi
