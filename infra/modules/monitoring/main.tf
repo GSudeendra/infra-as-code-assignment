@@ -48,7 +48,7 @@ resource "aws_kms_key" "cloudwatch_logs" {
       "Sid": "Allow GitHub Actions Role Full KMS Access",
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/iac-github-actions-role-dev"
+        "AWS": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/iac-github-actions-role-sg-dev"
       },
       "Action": [
         "kms:ListResourceTags",
@@ -67,6 +67,21 @@ resource "aws_kms_key" "cloudwatch_logs" {
         "kms:DisableKey",
         "kms:ScheduleKeyDeletion",
         "kms:CancelKeyDeletion",
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Allow CloudWatch Logs to use the key",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logs.us-east-1.amazonaws.com"
+      },
+      "Action": [
         "kms:Encrypt",
         "kms:Decrypt",
         "kms:ReEncrypt*",

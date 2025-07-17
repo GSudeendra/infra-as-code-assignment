@@ -44,7 +44,23 @@ resource "aws_iam_role_policy" "github_actions" {
       {
         Effect = "Allow"
         Action = [
-          "kms:TagResource", "kms:UntagResource", "kms:CreateKey", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:PutKeyPolicy", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListKeys", "kms:ListAliases", "kms:DisableKeyRotation", "kms:DeleteKey", "kms:ListResourceTags"
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:CreateKey",
+          "kms:DescribeKey",
+          "kms:EnableKeyRotation",
+          "kms:PutKeyPolicy",
+          "kms:GetKeyPolicy",
+          "kms:GetKeyRotationStatus",
+          "kms:ListKeys",
+          "kms:ListAliases",
+          "kms:DisableKeyRotation",
+          "kms:DeleteKey",
+          "kms:ListResourceTags",
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*"
         ]
         Resource = [
           "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:key/*"

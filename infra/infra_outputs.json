@@ -1,0 +1,56 @@
+{
+  "api_gateway_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "d2cmk7v4tl"
+  },
+  "api_gateway_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://d2cmk7v4tl.execute-api.us-east-1.amazonaws.com"
+  },
+  "aws_account_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "160071257600"
+  },
+  "aws_region": {
+    "sensitive": false,
+    "type": "string",
+    "value": "us-east-1"
+  },
+  "dynamodb_table_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:dynamodb:us-east-1:160071257600:table/users-dev-dce29561"
+  },
+  "dynamodb_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "users-dev-dce29561"
+  },
+  "lambda_function_names": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "register_user": "string",
+        "verify_user": "string"
+      }
+    ],
+    "value": {
+      "register_user": "register_user",
+      "verify_user": "verify_user"
+    }
+  },
+  "s3_bucket_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:s3:::static-content-dev-dce29561"
+  },
+  "s3_bucket_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "static-content-dev-dce29561"
+  }
+}

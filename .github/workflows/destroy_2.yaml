@@ -13,7 +13,7 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  AWS_ROLE_ARN: arn:aws:iam::160071257600:role/iac-user-management-github-actions-oidc-role
+  AWS_ROLE_ARN: arn:aws:iam::160071257600:role/iac-github-actions-role-sg-dev
 
 jobs:
   destroy:

@@ -38,7 +38,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: arn:aws:iam::160071257600:role/iac-user-management-github-actions-oidc-role
+          role-to-assume: arn:aws:iam::160071257600:role/iac-github-actions-role-sg-dev
       - name: Make bootstrap script executable
         run: chmod +x scripts/utilities/bootstrap_backend.sh
       - name: Run Bootstrap Backend Script
@@ -57,7 +57,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: arn:aws:iam::160071257600:role/iac-user-management-github-actions-oidc-role
+          role-to-assume: arn:aws:iam::160071257600:role/iac-github-actions-role-sg-dev
       - name: Make cleanup scripts executable
         run: |
           chmod +x scripts/utilities/cleanup-remote-state.sh
