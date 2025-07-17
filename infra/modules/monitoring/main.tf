@@ -12,6 +12,8 @@ terraform {
   required_version = ">= 1.5.0"
 }
 
+data "aws_caller_identity" "current" {}
+
 # CloudWatch Log Groups for Lambda Functions
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each = toset(var.lambda_function_names)
