@@ -18,6 +18,7 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
 
   name              = "/aws/lambda/${each.value}"
   retention_in_days = max(var.log_retention_days, 365) # Ensure at least 1 year retention
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
 
   tags = var.tags
 }
@@ -27,6 +28,54 @@ resource "aws_kms_key" "cloudwatch_logs" {
   description             = "KMS key for CloudWatch log encryption"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Enable IAM User Permissions",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Allow GitHub Actions Role Full KMS Access",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/iac-github-actions-role-dev"
+      },
+      "Action": [
+        "kms:ListResourceTags",
+        "kms:DescribeKey",
+        "kms:GetKeyPolicy",
+        "kms:PutKeyPolicy",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:ScheduleKeyDeletion",
+        "kms:EnableKeyRotation",
+        "kms:GetKeyRotationStatus",
+        "kms:CreateAlias",
+        "kms:UpdateAlias",
+        "kms:DeleteAlias",
+        "kms:EnableKey",
+        "kms:DisableKey",
+        "kms:ScheduleKeyDeletion",
+        "kms:CancelKeyDeletion",
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
 
   tags = var.tags
 }
@@ -42,6 +91,7 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
 
   name              = "/aws/apigateway/${var.api_gateway_name}"
   retention_in_days = max(var.log_retention_days, 365) # Ensure at least 1 year retention
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
 
   tags = var.tags
 }
