@@ -101,7 +101,7 @@ if ! aws iam get-role --role-name "$OIDC_ROLE_NAME" 2>/dev/null; then
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:SudeendraG/infra-as-code-assignment:*"
+          "token.actions.githubusercontent.com:sub": "repo:GSudeendra/infra-as-code-assignment:*"
         }
       }
     }
