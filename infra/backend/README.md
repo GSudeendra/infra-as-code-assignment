@@ -4,7 +4,7 @@ This module provisions the foundational AWS resources required for secure, autom
 
 ## What This Module Does
 - **Registers the GitHub Actions OIDC provider** with AWS for secure, short-lived authentication.
-- **Creates an IAM role** (`iac-github-actions-role-dev`) that GitHub Actions can assume via OIDC for all CI/CD operations.
+- **Creates an IAM role** (`iac-github-actions-role-sg-dev`) that GitHub Actions can assume via OIDC for all CI/CD operations.
 - **Attaches least-privilege policies** to the role for managing S3, DynamoDB, Lambda, API Gateway, CloudWatch, and IAM resources.
 - **Provides outputs** for the remote state S3 bucket, DynamoDB table, and IAM role ARN.
 
@@ -12,7 +12,7 @@ This module provisions the foundational AWS resources required for secure, autom
 | Resource Type | Name/Pattern | Purpose |
 |--------------|-------------|---------|
 | OIDC Provider | `token.actions.githubusercontent.com` | Allows GitHub Actions to authenticate to AWS |
-| IAM Role | `iac-github-actions-role-dev` | Assumed by GitHub Actions for CI/CD |
+| IAM Role | `iac-github-actions-role-sg-dev` | Assumed by GitHub Actions for CI/CD |
 | IAM Policies | Inline/attached | Permissions for Terraform to manage infra |
 | S3 Bucket | `iac-remote-state-...` | Stores Terraform remote state |
 | DynamoDB Table | `iac-terraform-locks-...` | State locking for Terraform |
